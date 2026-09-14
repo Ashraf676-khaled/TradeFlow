@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<NsDepCopConfig>
+    <Allowed From="*" To="*" />
+
+    <Disallowed From="MinimalTradeFlow.Web.Domain.*"
+				To="MinimalTradeFlow.Web.Infrastructure.*" />
+    
+    <Disallowed From="MinimalTradeFlow.Web.CartFeatures.*"
+				To="MinimalTradeFlow.Web.Infrastructure.*" />
+    
+    <Disallowed From="MinimalTradeFlow.Web.ProductFeatures.*"
+				To="MinimalTradeFlow.Web.Infrastructure.*" />
+    
+    <Disallowed From="MinimalTradeFlow.Web.Domain.OrderAggregate.*"
+				To="MinimalTradeFlow.Web.Domain.CartAggregate.*" />
+
+    <AnalyzerConfig>
+        <IssueKind Name="IllegalDependency" Severity="Error" />
+    </AnalyzerConfig>
+</NsDepCopConfig>

@@ -1,0 +1,27 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".template.config/template.json" />
+    <File Path="CleanArchitecture.nuspec" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="docker-compose.yml" />
+    <File Path="Dockerfile" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/TradeFlow.Api/TradeFlow.Api.csproj" />
+    <Project Path="src/TradeFlow.Application/TradeFlow.Application.csproj" />
+    <Project Path="src/TradeFlow.Domain/TradeFlow.Domain.csproj" />
+    <Project Path="src/TradeFlow.Infrastructure/TradeFlow.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TradeFlow.FunctionalTests/TradeFlow.Application.UnitTests.csproj" />
+    <Project Path="tests/TradeFlow.IntegrationTests/TradeFlow.Api.IntegrationTests.csproj" />
+    <Project Path="tests/TradeFlow.UnitTests/TradeFlow.Domain.UnitTests.csproj" />
+  </Folder>
+</Solution>
