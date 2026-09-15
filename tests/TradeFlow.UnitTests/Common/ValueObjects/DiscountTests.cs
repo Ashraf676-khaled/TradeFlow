@@ -1,4 +1,4 @@
-﻿namespace TradeFlow.Domain.Tests.Common.ValueObjects;
+﻿namespace TradeFlow.Domain.UnitTests.Common.ValueObjects;
 
 using TradeFlow.Domain.Common.ValueObjects;
 using Xunit;

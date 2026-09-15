@@ -1,5 +1,5 @@
-﻿using TradeFlow.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using TradeFlow.Domain.Users;
 
 namespace TradeFlow.Appliction.Common.Interfaces;
 
