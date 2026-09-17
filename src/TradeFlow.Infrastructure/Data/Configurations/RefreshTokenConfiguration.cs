@@ -13,6 +13,9 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 
     builder.HasKey(rt => rt.Id);
 
+    builder.Property(rt => rt.Id)
+           .ValueGeneratedNever();
+
     builder.Property(rt => rt.UserId)
         .HasConversion(id => id.Value, value => new UserId(value));
 

@@ -23,8 +23,8 @@ public static class ProblemExtensions
       ErrorKind.Conflict => StatusCodes.Status409Conflict,
       ErrorKind.Validation => StatusCodes.Status400BadRequest,
       ErrorKind.NotFound => StatusCodes.Status404NotFound,
-      ErrorKind.Unauthorized => StatusCodes.Status401Unauthorized,   // ⚠️ صلحتها، كانت 403 بالغلط عندك
-      ErrorKind.Forbidden => StatusCodes.Status403Forbidden,          // ➕ أضفتها، كانت ناقصة
+      ErrorKind.Unauthorized => StatusCodes.Status401Unauthorized,
+      ErrorKind.Forbidden => StatusCodes.Status403Forbidden,
       _ => StatusCodes.Status500InternalServerError,
     };
 
@@ -33,7 +33,11 @@ public static class ProblemExtensions
 
   private static IResult ValidationProblem(List<Error> errors)
   {
-    var errorsDict = errors.ToDictionary(e => e.Code, e => new[] { e.Description });
+    var errorsDict = errors
+        .GroupBy(e => e.Code)
+        .ToDictionary(
+            g => g.Key,
+            g => g.Select(e => e.Description).ToArray());
 
     var problemDetails = new ValidationProblemDetails(errorsDict)
     {

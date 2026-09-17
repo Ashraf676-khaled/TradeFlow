@@ -26,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TradeFlow.Application\TradeFlow.Application.csproj" />
     <ProjectReference Include="..\TradeFlow.Infrastructure\TradeFlow.Infrastructure.csproj" />
   </ItemGroup>
 

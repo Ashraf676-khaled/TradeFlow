@@ -3,6 +3,7 @@
 public interface ICurrentUserService
 {
   Guid? UserId { get; }
+  Guid? TenantId { get; }
   string? UserName { get; }
   string? Email { get; }
   bool IsAuthenticated { get; }

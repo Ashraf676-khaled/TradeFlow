@@ -14,7 +14,6 @@ public static class DependencyInjection
     services.AddOptionConfigs(configuration);
     services.AddServiceConfigs();
     services.AddAuthenticationConfig(configuration);
-    services.AddMediatorConfig();
 
     services.AddExceptionHandler<GlobalExceptionHandler>();
     services.AddProblemDetails();

@@ -145,7 +145,6 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Purchasing.PurchaseOrderItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("ProductId")
@@ -215,7 +214,6 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Sales.Payment", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("InvoiceId")
@@ -280,10 +278,27 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.ToTable("SalesOrderItems", (string)null);
                 });
 
+            modelBuilder.Entity("TradeFlow.Domain.Tenants.Tenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Tenants", (string)null);
+                });
+
             modelBuilder.Entity("TradeFlow.Domain.Users.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("ExpiresUtc")

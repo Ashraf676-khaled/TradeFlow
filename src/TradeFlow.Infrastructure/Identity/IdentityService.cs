@@ -1,12 +1,13 @@
 ﻿namespace TradeFlow.Infrastructure.Identity;
 
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TradeFlow.Application.Common.Interfaces;
-using TradeFlow.Appliction.Common.Interfaces;
 using TradeFlow.Domain.Common.Identifiers;
 using TradeFlow.Domain.Common.Results;
 using TradeFlow.Domain.Common.ValueObjects;
+using TradeFlow.Domain.Tenants;
 using TradeFlow.Domain.Users;
 
 public class IdentityService : IIdentityService
@@ -32,7 +33,7 @@ public class IdentityService : IIdentityService
   }
 
   public async Task<Result<AuthResult>> RegisterAsync(
-      Guid tenantId, string fullName, string email, string password, CancellationToken ct = default)
+    string companyName, string fullName, string email, string password, CancellationToken ct = default)
   {
     var emailResult = Email.Create(email);
     if (emailResult.IsError)
@@ -42,10 +43,14 @@ public class IdentityService : IIdentityService
     if (existing is not null)
       return UserErrors.EmailAlreadyExists;
 
-    // بنعمل Hash مؤقت الأول عشان نقدر ننادي PasswordHasher (محتاج instance من User)
-    var userResult = User.Create(
-        new TenantId(tenantId), fullName, emailResult.Value, "temp", UserRole.SalesRepresentative);
+    var tenantResult = Tenant.Create(companyName);
+    if (tenantResult.IsError)
+      return tenantResult.Errors;
 
+    var tenant = tenantResult.Value;
+
+    // أول مستخدم في أي Tenant جديد لازم يبقى Admin
+    var userResult = User.Create(tenant.Id, fullName, emailResult.Value, "temp", UserRole.Admin);
     if (userResult.IsError)
       return userResult.Errors;
 
@@ -56,12 +61,12 @@ public class IdentityService : IIdentityService
     if (changeHashResult.IsError)
       return changeHashResult.Errors;
 
+    _context.Tenants.Add(tenant);
     _userRepository.Add(user);
     await _context.SaveChangesAsync(ct);
 
     return await IssueTokensAsync(user, ct);
   }
-
   public async Task<Result<AuthResult>> LoginAsync(string email, string password, CancellationToken ct = default)
   {
     var user = await _userRepository.GetByEmailAsync(email, ct);
@@ -113,9 +118,15 @@ public class IdentityService : IIdentityService
     return await IssueTokensAsync(user, ct);
   }
 
-  public async Task<Result<Success>> RevokeAsync(Guid userId, string refreshToken, CancellationToken ct = default)
+  public async Task<Result<Success>> RevokeAsync(string refreshToken, CancellationToken ct = default)
   {
-    var user = await _userRepository.GetByIdAsync(new UserId(userId), ct);
+    var tokenEntity = await _context.RefreshTokens
+        .FirstOrDefaultAsync(rt => rt.Token == refreshToken, ct);
+
+    if (tokenEntity is null)
+      return UserErrors.RefreshTokenNotFound;
+
+    var user = await _userRepository.GetByIdAsync(tokenEntity.UserId, ct);
     if (user is null)
       return UserErrors.NotFound;
 
@@ -130,10 +141,12 @@ public class IdentityService : IIdentityService
   private async Task<Result<AuthResult>> IssueTokensAsync(User user, CancellationToken ct)
   {
     var claims = new List<System.Security.Claims.Claim>
-        {
-            new(System.Security.Claims.ClaimTypes.Email, user.Email.Value),
-            new(System.Security.Claims.ClaimTypes.Role, user.Role.ToString())
-        };
+    {
+        new(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.Value.ToString()),
+        new(System.Security.Claims.ClaimTypes.Email, user.Email.Value),
+        new(System.Security.Claims.ClaimTypes.Role, user.Role.ToString()),
+        new(TradeFlow.Application.Common.Constants.AppClaimTypes.TenantId, user.TenantId.Value.ToString()) // 👈 جديد
+    };
 
     var accessToken = _tokenProvider.GenerateAccessToken(user.Id.Value, claims);
     var refreshTokenValue = _tokenProvider.GenerateRefreshToken();

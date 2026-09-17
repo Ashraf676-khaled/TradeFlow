@@ -1,5 +1,4 @@
-﻿// Infrastructure/Identity/UserRepository.cs
-namespace TradeFlow.Infrastructure.Identity;
+﻿namespace TradeFlow.Infrastructure.Identity;
 
 using Microsoft.EntityFrameworkCore;
 using TradeFlow.Application.Common.Interfaces;
@@ -15,11 +14,15 @@ public class UserRepository : IUserRepository
 
   public Task<User?> GetByIdAsync(UserId id, CancellationToken ct = default)
       => _context.Users
+          .IgnoreQueryFilters()
           .Include(u => u.RefreshTokens)
           .FirstOrDefaultAsync(u => u.Id == id, ct);
 
+  // لازم IgnoreQueryFilters() هنا — وقت اللوجين/الريجستر لسه معندناش Tenant في الـContext خالص
   public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default)
-      => _context.Users.FirstOrDefaultAsync(u => u.Email.Value == email, ct);
+      => _context.Users
+          .IgnoreQueryFilters()
+          .FirstOrDefaultAsync(u => u.Email.Value == email, ct);
 
   public void Add(User user) => _context.Users.Add(user);
 }

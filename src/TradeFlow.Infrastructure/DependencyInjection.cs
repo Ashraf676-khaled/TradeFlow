@@ -1,8 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TradeFlow.Application.Common.Interfaces;
-using TradeFlow.Appliction.Common.Interfaces;
 using TradeFlow.Infrastructure.Data;
 using TradeFlow.Infrastructure.Data.Interceptors;
 using TradeFlow.Infrastructure.Identity;
@@ -31,6 +31,9 @@ public static class DependencyInjection
     services.AddDbContext<AppDbContext>((sp, options) =>
     {
       options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"));
+      options.AddInterceptors(
+          sp.GetRequiredService<AuditableEntityInterceptor>(),
+          sp.GetRequiredService<DispatchDomainEventsInterceptor>());
       options.AddInterceptors(
           sp.GetRequiredService<AuditableEntityInterceptor>(),
           sp.GetRequiredService<DispatchDomainEventsInterceptor>());

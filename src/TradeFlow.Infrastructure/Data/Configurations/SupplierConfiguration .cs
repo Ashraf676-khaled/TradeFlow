@@ -59,7 +59,7 @@ public class PurchaseOrderItemConfiguration : IEntityTypeConfiguration<PurchaseO
     builder.ToTable("PurchaseOrderItems");
     builder.HasKey(i => i.Id);
     builder.Property(i => i.ProductId).HasConversion(p => p.Value, v => new ProductId(v));
-
+    builder.Property(p => p.Id).ValueGeneratedNever();
     builder.OwnsOne(i => i.OrderedQuantity, q => q.Property(x => x.Value).HasColumnName("OrderedQuantity"));
     builder.OwnsOne(i => i.ReceivedQuantity, q => q.Property(x => x.Value).HasColumnName("ReceivedQuantity"));
     builder.OwnsOne(i => i.UnitCost, m =>

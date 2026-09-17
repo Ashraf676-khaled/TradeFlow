@@ -1,7 +1,6 @@
 ﻿namespace TradeFlow.Infrastructure.Identity;
 
 using TradeFlow.Application.Common.Interfaces;
-using TradeFlow.Appliction.Common.Interfaces;
 using TradeFlow.Domain.Common.Identifiers;
 
 public class RefreshTokenService : IRefreshTokenService
@@ -23,7 +22,8 @@ public class RefreshTokenService : IRefreshTokenService
     var result = user.IssueRefreshToken(token, DateTimeOffset.UtcNow.AddDays(7));
     if (result.IsError) return;
 
-    await _context.SaveChangesAsync(ct);
+
+     await _context.SaveChangesAsync(ct);
   }
 
   public async Task<bool> ValidateRefreshTokenAsync(Guid userId, string token, CancellationToken ct = default)

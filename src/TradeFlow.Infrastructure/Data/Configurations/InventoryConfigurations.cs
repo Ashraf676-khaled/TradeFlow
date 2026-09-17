@@ -67,6 +67,7 @@ public class StockItemConfiguration : IEntityTypeConfiguration<StockItem>
     builder.Property(s => s.TenantId).HasConversion(t => t.Value, v => new TenantId(v));
     builder.Property(s => s.WarehouseId).HasConversion(w => w.Value, v => new WarehouseId(v));
     builder.Property(s => s.ProductId).HasConversion(p => p.Value, v => new ProductId(v));
+    builder.Property(p => p.Id).ValueGeneratedNever();
 
     builder.OwnsOne(s => s.AvailableQuantity, q => q.Property(x => x.Value).HasColumnName("AvailableQuantity"));
     builder.OwnsOne(s => s.ReservedQuantity, q => q.Property(x => x.Value).HasColumnName("ReservedQuantity"));

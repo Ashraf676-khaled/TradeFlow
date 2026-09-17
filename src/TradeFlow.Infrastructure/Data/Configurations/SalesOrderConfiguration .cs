@@ -95,6 +95,7 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
     builder.ToTable("Payments");
     builder.HasKey(p => p.Id);
 
+    builder.Property(i => i.Id).ValueGeneratedNever();
     builder.OwnsOne(p => p.Amount, m =>
     {
       m.Property(x => x.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)");
