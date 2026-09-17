@@ -1,8 +1,9 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
-using TradeFlow.Application.Common.Interfaces;
+﻿namespace TradeFlow.Infrastructure.Identity;
 
-namespace TradeFlow.Infrastructure.Identity;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
+using TradeFlow.Application.Common.Constants;
+using TradeFlow.Application.Common.Interfaces;
 
 public class CurrentUserService : ICurrentUserService
 {
@@ -24,11 +25,21 @@ public class CurrentUserService : ICurrentUserService
     }
   }
 
+  public Guid? TenantId
+  {
+    get
+    {
+      var id = User?.Claims.FirstOrDefault(c => c.Type == AppClaimTypes.TenantId)?.Value;
+      return string.IsNullOrEmpty(id) ? null : Guid.Parse(id);
+    }
+  }
+
   public string? UserName =>
       User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
 
   public string? Email =>
       User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
   public bool IsAuthenticated => User?.Identity?.IsAuthenticated ?? false;
 
   public bool IsInRole(string role) => User?.IsInRole(role) ?? false;
