@@ -145,20 +145,20 @@ public class IdentityService : IIdentityService
         new(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.Value.ToString()),
         new(System.Security.Claims.ClaimTypes.Email, user.Email.Value),
         new(System.Security.Claims.ClaimTypes.Role, user.Role.ToString()),
-        new(TradeFlow.Application.Common.Constants.AppClaimTypes.TenantId, user.TenantId.Value.ToString()) // 👈 جديد
+        new(TradeFlow.Application.Common.Constants.AppClaimTypes.TenantId, user.TenantId.Value.ToString())
     };
 
     var accessToken = _tokenProvider.GenerateAccessToken(user.Id.Value, claims);
     var refreshTokenValue = _tokenProvider.GenerateRefreshToken();
-    var expiresUtc = DateTimeOffset.UtcNow.AddDays(RefreshTokenDays);
+    var refreshTokenExpiresUtc = DateTimeOffset.UtcNow.AddDays(RefreshTokenDays);
 
-    var issueResult = user.IssueRefreshToken(refreshTokenValue, expiresUtc);
+    var issueResult = user.IssueRefreshToken(refreshTokenValue, refreshTokenExpiresUtc);
     if (issueResult.IsError)
       return issueResult.Errors;
 
     await _context.SaveChangesAsync(ct);
 
     var accessTokenExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(_jwtSettings.ExpiryInMinutes);
-    return new AuthResult(accessToken, refreshTokenValue, accessTokenExpiresUtc);
+    return new AuthResult(accessToken, refreshTokenValue, accessTokenExpiresUtc, refreshTokenExpiresUtc);
   }
 }
