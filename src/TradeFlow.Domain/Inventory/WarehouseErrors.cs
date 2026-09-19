@@ -9,6 +9,8 @@ public static class WarehouseErrors
 
   public static readonly Error NameTooLong = Error.Validation(
       "Warehouse.NameTooLong", "Warehouse name cannot exceed 150 characters.");
+  public static readonly Error NameAlreadyExists = Error.Conflict(
+    "Warehouse.NameAlreadyExists", "There is already another warehouse with the same name..");
 
   public static readonly Error LocationRequired = Error.Validation(
       "Warehouse.LocationRequired", "Warehouse location is required.");

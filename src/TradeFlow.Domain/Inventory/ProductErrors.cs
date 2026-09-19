@@ -30,7 +30,12 @@ public static class ProductErrors
 
   public static readonly Error HasActiveOrders = Error.Conflict(
       "Product.HasActiveOrders", "Cannot deactivate a product with active sales orders.");
+  public static readonly Error SkuAlreadyExists = Error.Conflict(
+      "Product.SkuAlreadyExists", "A product with the same SKU already exists.");
+  public static readonly Error CostExceedsSellingPrice = Error.Validation(
+    "Product.CostExceedsSellingPrice", "The cost cannot be greater than or equal to the selling price.");
 
   public static readonly Error NotFound = Error.NotFound(
+
       "Product.NotFound", "Product not found.");
 }
