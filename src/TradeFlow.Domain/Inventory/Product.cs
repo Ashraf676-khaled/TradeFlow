@@ -45,12 +45,12 @@ public sealed class Product : AggregateRoot, IAuditableEntity
   }
 
   public static Result<Product> Create(
-      TenantId tenantId,
-      string name,
-      Sku sku,
-      Money sellingPrice,
-      Money initialCost,
-      int minimumStock)
+    TenantId tenantId,
+    string name,
+    Sku sku,
+    Money sellingPrice,
+    Money initialCost,
+    int minimumStock)
   {
     if (string.IsNullOrWhiteSpace(name))
       return ProductErrors.NameRequired;
@@ -64,6 +64,9 @@ public sealed class Product : AggregateRoot, IAuditableEntity
     if (minimumStock < 0)
       return ProductErrors.InvalidMinimumStock;
 
+    if (initialCost.Amount >= sellingPrice.Amount)   
+      return ProductErrors.CostExceedsSellingPrice;
+
     return new Product(ProductId.New(), tenantId, name, sku, sellingPrice, initialCost, minimumStock);
   }
 
@@ -71,6 +74,9 @@ public sealed class Product : AggregateRoot, IAuditableEntity
   {
     if (newPrice.Amount <= 0)
       return ProductErrors.InvalidSellingPrice;
+
+    if (Cost.Amount >= newPrice.Amount)   
+      return ProductErrors.CostExceedsSellingPrice;
 
     SellingPrice = newPrice;
     return Result.Success;
@@ -84,6 +90,9 @@ public sealed class Product : AggregateRoot, IAuditableEntity
   {
     if (newUnitCost.Amount <= 0)
       return ProductErrors.InvalidCost;
+
+    if (newUnitCost.Amount >= SellingPrice.Amount)   
+      return ProductErrors.CostExceedsSellingPrice;
 
     Cost = newUnitCost;
     return Result.Success;

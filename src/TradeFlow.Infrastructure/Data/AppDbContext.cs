@@ -14,9 +14,8 @@ using TradeFlow.Domain.Users;
 public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserService currentUserService)
     : DbContext(options), IApplicationDbContext
 {
-  // Guid.Empty كـ Fallback آمن: TenantId الحقيقي في الـDomain مينفعش يبقى Empty أبدًا،
-  // فلو المستخدم مش مسجل دخول (مفيش Tenant في التوكن)، الاستعلامات هترجع فاضية بدل ما تسرّب بيانات
-  private Guid CurrentTenantId => currentUserService.TenantId ?? Guid.Empty;
+  // النوع بقى TenantId نفسها (الـstruct) مش Guid خام
+  private TenantId CurrentTenantId => new(currentUserService.TenantId ?? Guid.Empty);
 
   public DbSet<User> Users => Set<User>();
   public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -35,15 +34,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserSe
     modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     modelBuilder.Ignore<DomainEvent>();
 
-    modelBuilder.Entity<User>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<Product>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<Warehouse>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<StockItem>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<Customer>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<SalesOrder>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<Invoice>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<Supplier>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
-    modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(e => EF.Property<Guid>(e, "TenantId") == CurrentTenantId);
+    // مقارنة مباشرة e.TenantId == CurrentTenantId — النوعين TenantId مع بعض،
+    // EF بيطبق الـHasConversion بتاعتها تلقائيًا ويترجمها لـSQL عادي
+    modelBuilder.Entity<User>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<Product>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<Warehouse>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<StockItem>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<Customer>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<SalesOrder>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<Invoice>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<Supplier>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
 
     base.OnModelCreating(modelBuilder);
   }
