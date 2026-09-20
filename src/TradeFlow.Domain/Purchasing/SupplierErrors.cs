@@ -18,4 +18,8 @@ public static class SupplierErrors
 
   public static readonly Error NotFound = Error.NotFound(
       "Supplier.NotFound", "Supplier not found.");
+  public static readonly Error PhoneAlreadyExists = Error.Conflict(
+    "Supplier.PhoneAlreadyExists", "There is already another supplier with the same phone number.");
+  public static readonly Error NameAlreadyExists = Error.Conflict(
+    "Supplier.NameAlreadyExists", "A supplier with the same name already exists.");
 }
