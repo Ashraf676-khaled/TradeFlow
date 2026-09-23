@@ -1,0 +1,9 @@
+{
+  "name": "TradeFlow ERP",
+  "description": "نظام إدارة التجارة والمخزون والمبيعات والفواتير المتكامل TradeFlow ERP",
+  "version": "1.0.0",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
