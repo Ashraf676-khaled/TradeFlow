@@ -9,6 +9,8 @@ public static class InvoiceErrors
 
   public static readonly Error InvalidPaymentAmount = Error.Validation(
       "Invoice.InvalidPaymentAmount", "Payment amount must be greater than zero.");
+  public static readonly Error AlreadyInvoiced = Error.Conflict(
+    "Invoice.AlreadyInvoiced", "This sales order has already been invoiced.");
 
   public static readonly Error PaymentExceedsOutstandingBalance = Error.Conflict(
       "Invoice.PaymentExceedsOutstandingBalance", "Payment cannot exceed the outstanding balance.");

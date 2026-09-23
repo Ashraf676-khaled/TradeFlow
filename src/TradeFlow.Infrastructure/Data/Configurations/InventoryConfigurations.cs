@@ -71,6 +71,7 @@ public class StockItemConfiguration : IEntityTypeConfiguration<StockItem>
 
     builder.OwnsOne(s => s.AvailableQuantity, q => q.Property(x => x.Value).HasColumnName("AvailableQuantity"));
     builder.OwnsOne(s => s.ReservedQuantity, q => q.Property(x => x.Value).HasColumnName("ReservedQuantity"));
+    builder.Property(s => s.RowVersion).IsRowVersion().IsConcurrencyToken();
 
     builder.HasIndex(s => new { s.WarehouseId, s.ProductId }).IsUnique();
   }

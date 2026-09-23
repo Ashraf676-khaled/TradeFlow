@@ -13,6 +13,7 @@ public sealed class StockItem : AggregateRoot, IAuditableEntity
   public ProductId ProductId { get; private set; }
   public Quantity AvailableQuantity { get; private set; } = null!;
   public Quantity ReservedQuantity { get; private set; } = null!;
+  public byte[]? RowVersion { get; private set; }
 
   DateTimeOffset IAuditableEntity.CreatedAtUtc { get; set; }
   string? IAuditableEntity.CreatedBy { get; set; }

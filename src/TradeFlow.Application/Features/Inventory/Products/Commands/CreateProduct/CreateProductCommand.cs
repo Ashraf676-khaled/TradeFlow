@@ -9,4 +9,6 @@ public sealed record CreateProductCommand(
     string Sku,
     decimal SellingPrice,
     decimal Cost,
-    int MinimumStock) : IRequest<Result<Guid>>;
+    int MinimumStock,
+    int OpeningStockQuantity = 0,
+    Guid? OpeningStockWarehouseId = null) : IRequest<Result<Guid>>;

@@ -9,7 +9,7 @@ using TradeFlow.Application.Common.Models;
 public sealed class GetProductsQueryHandler(IApplicationDbContext context, IMapper mapper)
     : IRequestHandler<GetProductsQuery, PaginatedList<ProductDto>>
 {
-  public Task<PaginatedList<ProductDto>> Handle(GetProductsQuery request, CancellationToken ct)
+  public async Task<PaginatedList<ProductDto>> Handle(GetProductsQuery request, CancellationToken ct)
   {
     var query = context.Products.AsQueryable();
 
@@ -20,6 +20,6 @@ public sealed class GetProductsQueryHandler(IApplicationDbContext context, IMapp
         .OrderBy(p => p.Name)
         .ProjectTo<ProductDto>(mapper.ConfigurationProvider);
 
-    return PaginatedList<ProductDto>.CreateAsync(projected, request.PageNumber, request.PageSize);
+    return await PaginatedList<ProductDto>.CreateAsync(projected, request.PageNumber, request.PageSize, ct);
   }
 }

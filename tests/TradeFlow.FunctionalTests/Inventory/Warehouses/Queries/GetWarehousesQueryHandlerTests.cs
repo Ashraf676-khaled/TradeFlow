@@ -2,6 +2,7 @@
 
 using TradeFlow.Application.Inventory.Warehouses.Commands.ActivateWarehouse;
 using TradeFlow.Application.Inventory.Warehouses.Commands.CreateWarehouse;
+using TradeFlow.Application.Inventory.Warehouses;
 using TradeFlow.Application.Inventory.Warehouses.Commands.DeactivateWarehouse;
 using TradeFlow.Application.Inventory.Warehouses.Queries.GetWarehouses;
 using TradeFlow.Application.UnitTests.Helpers;
@@ -20,7 +21,7 @@ public class GetWarehousesQueryHandlerTests
     await createHandler.Handle(new CreateWarehouseCommand("Alpha Warehouse", "Giza"), CancellationToken.None);
 
     var mapper = TestMapperFactory.Create();
-    var handler = new GetWarehousesQueryHandler(context, mapper);
+    var handler = new GetWarehousesQueryHandler(context, mapper, _currentUser);
 
     var result = await handler.Handle(new GetWarehousesQuery(), CancellationToken.None);
 
@@ -41,7 +42,7 @@ public class GetWarehousesQueryHandlerTests
     await deactivateHandler.Handle(new DeactivateWarehouseCommand(toDeactivate.Value), CancellationToken.None);
 
     var mapper = TestMapperFactory.Create();
-    var handler = new GetWarehousesQueryHandler(context, mapper);
+    var handler = new GetWarehousesQueryHandler(context, mapper, _currentUser);
 
     var result = await handler.Handle(new GetWarehousesQuery(IsActive: true), CancellationToken.None);
 
@@ -50,14 +51,17 @@ public class GetWarehousesQueryHandlerTests
   }
 
   [Fact]
-  public async Task Handle_WithNoWarehouses_ShouldReturnEmptyList()
+  public async Task Handle_WithNoWarehouses_ShouldSeedAndReturnDefaultWarehouse()
   {
     await using var context = TestDbContextFactory.Create(_currentUser);
     var mapper = TestMapperFactory.Create();
-    var handler = new GetWarehousesQueryHandler(context, mapper);
+    var handler = new GetWarehousesQueryHandler(context, mapper, _currentUser);
 
     var result = await handler.Handle(new GetWarehousesQuery(), CancellationToken.None);
 
-    Assert.Empty(result.Items);
+    // A default warehouse is seeded lazily so dropdowns are never empty.
+    var warehouse = Assert.Single(result.Items);
+    Assert.Equal(DefaultWarehouse.DefaultName, warehouse.Name);
+    Assert.True(warehouse.IsActive);
   }
 }

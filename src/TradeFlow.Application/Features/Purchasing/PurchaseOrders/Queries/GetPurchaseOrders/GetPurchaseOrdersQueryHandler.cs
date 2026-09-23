@@ -12,7 +12,7 @@ using TradeFlow.Domain.Purchasing;
 public sealed class GetPurchaseOrdersQueryHandler(IApplicationDbContext context, IMapper mapper)
     : IRequestHandler<GetPurchaseOrdersQuery, PaginatedList<PurchaseOrderDto>>
 {
-  public Task<PaginatedList<PurchaseOrderDto>> Handle(GetPurchaseOrdersQuery request, CancellationToken ct)
+  public async Task<PaginatedList<PurchaseOrderDto>> Handle(GetPurchaseOrdersQuery request, CancellationToken ct)
   {
     var query = context.PurchaseOrders.AsQueryable();
 
@@ -26,6 +26,6 @@ public sealed class GetPurchaseOrdersQueryHandler(IApplicationDbContext context,
     }
 
     var projected = query.OrderByDescending(o => o.CreatedAt).ProjectTo<PurchaseOrderDto>(mapper.ConfigurationProvider);
-    return PaginatedList<PurchaseOrderDto>.CreateAsync(projected, request.PageNumber, request.PageSize);
+    return await PaginatedList<PurchaseOrderDto>.CreateAsync(projected, request.PageNumber, request.PageSize, ct);
   }
 }
