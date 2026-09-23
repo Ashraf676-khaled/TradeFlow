@@ -11,7 +11,7 @@ import { settingsService, DEFAULT_SYSTEM_SETTINGS } from '../services/settingsSe
 
 export type { NavigationPage };
 
-export type ActiveCurrency = 'USD' | 'SAR' | 'EUR' | 'GBP';
+export type ActiveCurrency = 'EGP' | 'USD' | 'SAR' | 'EUR';
 export type ActiveTimeframe = 'Today' | '7D' | '30D' | 'YTD';
 
 interface TenantContextType {
@@ -71,9 +71,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(authService.isAuthenticated());
   const [userSession, setUserSession] = useState<UserSession | null>(authService.getCurrentSession());
   const [currentPage, setCurrentPage] = useState<NavigationPage>('overview');
-  const [activeCurrency, setActiveCurrency] = useState<ActiveCurrency>('USD');
+  const [activeCurrency, setActiveCurrency] = useState<ActiveCurrency>('EGP');
   const [activeTimeframe, setActiveTimeframe] = useState<ActiveTimeframe>('30D');
-  const [language, setLanguageState] = useState<'en' | 'ar'>('en');
+  const [language, setLanguageState] = useState<'en' | 'ar'>('ar');
   const [openQuickOrderModal, setOpenQuickOrderModal] = useState<boolean>(false);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -86,13 +86,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [apiError, setApiError] = useState<string | null>(null);
 
   const currencySymbolsMap: Record<ActiveCurrency, string> = {
+    EGP: 'ج.م',
     USD: '$',
     SAR: 'ر.س',
     EUR: '€',
-    GBP: '£',
   };
 
-  const currencySymbol = currencySymbolsMap[activeCurrency] || '$';
+  const currencySymbol = currencySymbolsMap[activeCurrency] || 'ج.م';
 
   const formatCurrency = (amount: number): string => {
     const formatted = Math.abs(amount).toLocaleString('en-US', {
@@ -100,10 +100,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       maximumFractionDigits: 2,
     });
     const prefix = amount < 0 ? '-' : '';
-    if (activeCurrency === 'SAR') {
-      return `${prefix}${formatted} ${currencySymbol}`;
+    if (activeCurrency === 'EGP') {
+      return `${prefix}${formatted} ج.م`;
     }
-    return `${prefix}${currencySymbol}${formatted}`;
+    if (activeCurrency === 'SAR') {
+      return `${prefix}${formatted} ر.س`;
+    }
+    if (activeCurrency === 'EUR') {
+      return `${prefix}€${formatted}`;
+    }
+    return `${prefix}$${formatted}`;
   };
 
   const setLanguage = (lang: 'en' | 'ar') => {
@@ -111,6 +117,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
   };
+
+  // Sync document direction on mount
+  useEffect(() => {
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = language;
+  }, [language]);
 
   const loginSession = (session: UserSession) => {
     setIsAuthenticated(true);

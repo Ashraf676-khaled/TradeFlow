@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "tsc -b && vite build",
+    "build:exe": "bun scripts/build-standalone-exe.ts",
     "lint": "tsc --noEmit",
     "start": "tsx server.ts"
   },

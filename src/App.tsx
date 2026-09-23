@@ -29,6 +29,7 @@ const MainAppContent: React.FC = () => {
 
   const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
   const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Sync with context quick order trigger
   useEffect(() => {
@@ -37,6 +38,11 @@ const MainAppContent: React.FC = () => {
       setOpenQuickOrderModal(false);
     }
   }, [openQuickOrderModal, setOpenQuickOrderModal]);
+
+  // Close mobile sidebar on page change
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+  }, [currentPage]);
 
   // Authentication Guard: Render Login Page if not logged in
   if (!isAuthenticated) {
@@ -51,12 +57,18 @@ const MainAppContent: React.FC = () => {
       dir={isRtl ? 'rtl' : 'ltr'}
     >
       {/* Fixed Sidebar */}
-      <Sidebar />
+      <Sidebar
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+      />
 
       {/* Main Content Area offset by sidebar */}
       <div className={`flex flex-col min-h-screen transition-all ${isRtl ? 'lg:pr-72' : 'lg:pl-72'}`}>
         {/* Sticky Header */}
-        <Header onOpenNewOrder={() => setIsCreateOrderModalOpen(true)} />
+        <Header
+          onOpenNewOrder={() => setIsCreateOrderModalOpen(true)}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
+        />
 
         {/* Global API Error Alert Banner */}
         {apiError && (

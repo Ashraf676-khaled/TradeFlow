@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant, NavigationPage } from '../../context/TenantContext';
+import { BrandLogo } from './BrandLogo';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile }) => {
   const {
     currentPage,
     setCurrentPage,
@@ -111,51 +117,77 @@ export const Sidebar: React.FC = () => {
     },
   ];
 
-  return (
-    <aside className={`fixed top-0 h-full w-72 bg-[#111316] z-50 flex flex-col justify-between select-none shadow-[0_1px_8px_rgba(0,0,0,0.5)] ${
-      language === 'ar' ? 'right-0 border-l border-[#26292e]' : 'left-0 border-r border-[#26292e]'
-    }`}>
-      {/* Brand & Account Context */}
-      <div className="flex flex-col min-h-0">
-        <div className="px-4 py-3.5 bg-[#0c0e11]/90 border-b border-[#26292e]/80">
-          <div className="flex items-center justify-between mb-2.5">
-            {/* TradeFlow SVG Wordmark */}
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentPage('overview')}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 36" fill="none" className="h-8 w-auto">
-                <rect x="2" y="4" width="28" height="28" rx="6" fill="#181A1E" stroke="#2E3238" strokeWidth="1.5" />
-                <path d="M9 22L16 11L23 22" stroke="#EDEDEF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M12 18H20" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" />
-                <path d="M16 9V25" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="1 3" />
-                <text x="38" y="23" fill="#EDEDEF" fontFamily="Inter, sans-serif" fontSize="16" fontWeight="700" letterSpacing="-0.03em">
-                  Trade<tspan fill="#9CA3AF" fontWeight="400">Flow</tspan>
-                </text>
-              </svg>
-            </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase bg-[#1e2023] text-[#4edea3] border border-[#4edea3]/20">
-              PRIME
-            </span>
-          </div>
+  const isAr = language === 'ar';
 
-          <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#1a1c1f] rounded border border-white/5">
-            <div className="flex flex-col min-w-0 pr-2">
-              <span className="text-xs text-[#e2e2e6] font-medium truncate">TradeFlow Global LLC</span>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
-                <span className="text-[11px] text-[#8f9194]">Live Engine v2.4</span>
-              </div>
+  return (
+    <>
+      {/* Mobile Backdrop */}
+      {isMobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+        />
+      )}
+
+      <aside
+        className={`fixed top-0 h-full w-72 bg-[#111316] z-50 flex flex-col justify-between select-none shadow-[0_1px_8px_rgba(0,0,0,0.5)] transition-transform duration-200 ease-in-out ${
+          isAr
+            ? `right-0 border-l border-[#26292e] ${isMobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`
+            : `left-0 border-r border-[#26292e] ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`
+        }`}
+        dir={isAr ? 'rtl' : 'ltr'}
+      >
+        {/* Brand & Account Context */}
+        <div className="flex flex-col min-h-0">
+          <div className="px-4 py-3.5 bg-[#0c0e11]/90 border-b border-[#26292e]/80">
+            <div className="flex items-center justify-between mb-2.5">
+              {/* Brand Logo with correct RTL / LTR orientation */}
+              <BrandLogo
+                language={language}
+                size="md"
+                showBadge={true}
+                showSubtitle={true}
+                onClick={() => {
+                  setCurrentPage('overview');
+                  if (onCloseMobile) onCloseMobile();
+                }}
+              />
+
+              {/* Mobile Close Button */}
+              {onCloseMobile && (
+                <button
+                  onClick={onCloseMobile}
+                  className="lg:hidden p-1 rounded text-[#8f9194] hover:text-white hover:bg-[#1f2125]"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              )}
             </div>
-            <button
-              onClick={handleRefresh}
-              disabled={isLoadingData}
-              title="Refresh System Data"
-              className="p-1 rounded text-[#8f9194] hover:text-white hover:bg-[#282a2d] transition-colors"
-            >
-              <span className={`material-symbols-outlined text-sm ${isLoadingData ? 'animate-spin' : ''}`}>
-                sync
-              </span>
-            </button>
+
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#1a1c1f] rounded border border-white/5 mt-3">
+              <div className="flex flex-col min-w-0 pr-1">
+                <span className="text-xs text-[#e2e2e6] font-medium truncate">
+                  {isAr ? 'شركة تريد فلو للتجارة (مصر)' : 'TradeFlow Global LLC'}
+                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>
+                  <span className="text-[11px] text-[#8f9194]">
+                    {isAr ? 'محرك التداول اللحظي v2.4' : 'Live Engine v2.4'}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleRefresh}
+                disabled={isLoadingData}
+                title={isAr ? 'تحديث بيانات النظام' : 'Refresh System Data'}
+                className="p-1.5 rounded text-[#8f9194] hover:text-white hover:bg-[#282a2d] transition-colors shrink-0"
+              >
+                <span className={`material-symbols-outlined text-sm ${isLoadingData ? 'animate-spin' : ''}`}>
+                  sync
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
 
         {/* Navigation Sections */}
         <nav className="flex-1 px-2.5 py-3 space-y-4 overflow-y-auto overflow-x-hidden">
@@ -232,5 +264,6 @@ export const Sidebar: React.FC = () => {
         </div>
       </div>
     </aside>
+    </>
   );
 };
