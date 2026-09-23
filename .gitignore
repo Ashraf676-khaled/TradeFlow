@@ -18,6 +18,9 @@
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+dist/
+dist-server/
+bin/
 x64/
 x86/
 bld/

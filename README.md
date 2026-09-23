@@ -4,22 +4,15 @@
 
 ---
 
-## 📸 Platform Screenshots
+## 🖥️ System Modules & Interface Overview
 
-### 1. Executive Dashboard & Telemetry
-High-density overview monitoring operational KPIs, volume trends, order execution streams, and low-inventory alerts.
+The TradeFlow Obsidian Platinum interface provides a unified workstation for trading operations:
 
-![TradeFlow Dashboard Overview](docs/screenshots/dashboard_overview.jpg)
-
-### 2. Trading Execution Terminal
-Institutional order ticket for quick booking, live multi-warehouse stock availability matrix, and real-time fee calculation.
-
-![Trading Execution Terminal](docs/screenshots/trading_terminal.jpg)
-
-### 3. Multi-Warehouse Asset Inventory & Logistics
-SKU registry, inter-warehouse transfers, inbound goods receiving, and gross margin tracking across distribution centers.
-
-![Asset Inventory & Logistics](docs/screenshots/inventory_ledger.jpg)
+- **Executive Telemetry & Dashboard**: High-density operational blotter with real-time KPI metrics, volume trends, execution streams, and low-inventory reorder alerts.
+- **Trading & Execution Blotter**: Institutional order ticket for instant trade booking, multi-warehouse stock allocation matrix, and dynamic fee calculation.
+- **Multi-Warehouse Asset Ledger**: SKU registry, inter-warehouse transfers, inbound goods receiving, and gross margin tracking across regional hubs and port distribution centers.
+- **Receivables & Invoicing**: Automated sequential tax invoicing upon order confirmation, A4 & 80mm thermal receipt printing, and payment collection ledger.
+- **Counterparties & Credit Facilities**: Commercial accounts directory, revolving credit facilities, and real-time exposure monitoring.
 
 ---
 

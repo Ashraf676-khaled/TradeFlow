@@ -1,12 +1,10 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const appDir = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = 3000;
@@ -1124,8 +1122,14 @@ app.post('/api/invoices/:id/cancel', (req: Request, res: Response) => {
 // ==========================================
 
 async function startServer() {
-  const isProd = process.env.NODE_ENV === 'production';
-  const distPath = path.resolve(__dirname, 'dist');
+  const isPkg = (process as unknown as { pkg?: boolean }).pkg === true;
+  const isProd = process.env.NODE_ENV === 'production' || isPkg;
+  const candidatePaths = [
+    path.resolve(appDir, 'dist'),
+    path.resolve(appDir, '../dist'),
+    path.resolve(process.cwd(), 'dist'),
+  ];
+  const distPath = candidatePaths.find(p => fs.existsSync(p)) || path.resolve(appDir, 'dist');
 
   if (isProd && fs.existsSync(distPath)) {
     app.use(express.static(distPath));
@@ -1133,6 +1137,7 @@ async function startServer() {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, host: HOST, port: PORT },
       appType: 'spa',
@@ -1143,7 +1148,7 @@ async function startServer() {
     app.use('*', async (req: Request, res: Response, next) => {
       const url = req.originalUrl;
       try {
-        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        let template = fs.readFileSync(path.resolve(appDir, 'index.html'), 'utf-8');
         template = await vite.transformIndexHtml(url, template);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       } catch (e) {
@@ -1154,7 +1159,19 @@ async function startServer() {
   }
 
   app.listen(PORT, HOST, () => {
-    console.log(`[TradeFlow ERP] Server listening on http://${HOST}:${PORT}`);
+    console.log(`\n========================================================`);
+    console.log(`  TradeFlow ERP - Obsidian Platinum Edition`);
+    console.log(`========================================================`);
+    console.log(`  [+] Web UI: http://localhost:${PORT}`);
+    console.log(`  [+] API:    http://localhost:${PORT}/api/products`);
+    console.log(`  [+] Admin:  admin@tradeflow.io / Password123!`);
+    console.log(`========================================================\n`);
+
+    if (isPkg && process.platform === 'win32') {
+      import('child_process').then(({ exec }) => {
+        exec(`start http://localhost:${PORT}`);
+      }).catch(() => {});
+    }
   });
 }
 
