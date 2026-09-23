@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { X, ShoppingBag, LoaderCircle, Search } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTenant } from '../../context/TenantContext';
 import { Invoice } from '../../types';
-import { getApiErrorMessage } from '../../services/apiClient';
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -18,7 +16,7 @@ interface OrderLineInput {
 }
 
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ isOpen, onClose, onInvoiceCreated }) => {
-  const { customers, warehouses, products, currencySymbol, createSalesOrder, settings } = useTenant();
+  const { customers, warehouses, products, formatCurrency, createSalesOrder, settings, language } = useTenant();
 
   const [selectedCustomerId, setSelectedCustomerId] = useState(customers[0]?.id || '');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(warehouses[0]?.id || '');
@@ -27,14 +25,19 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ isOpen, onCl
   const [error, setError] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const scanInputRef = React.useRef<HTMLInputElement>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setSelectedCustomerId(customers[0]?.id || '');
-    const defaultWarehouse = warehouses.find(warehouse => warehouse.name?.includes('رئيسي')) || warehouses[0];
+    const defaultWarehouse = warehouses[0];
     setSelectedWarehouseId(defaultWarehouse?.id || '');
-    setItems(products.map(product => ({ id: `item-${product.id}`, productId: product.id, quantity: 0, unitPrice: product.unitPrice || 0 })));
+    setItems(products.map(product => ({
+      id: `item-${product.id}`,
+      productId: product.id,
+      quantity: 0,
+      unitPrice: product.unitPrice || 0,
+    })));
     setError('');
     setProductSearch('');
   }, [isOpen, customers, warehouses, products]);
@@ -50,295 +53,310 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ isOpen, onCl
     }));
   };
 
+  const handlePriceChange = (itemId: string, price: number) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        return { ...item, unitPrice: Math.max(0, price) };
+      }
+      return item;
+    }));
+  };
+
   const subtotal = items.reduce((sum, i) => sum + (i.quantity * i.unitPrice), 0);
   const selectedItemCount = items.filter(item => item.quantity > 0).length;
 
-  // Prices are treated as tax-inclusive; split out the VAT for display when enabled.
-  const taxApplicable = settings.taxEnabled && settings.taxPercentage > 0;
-  const taxAmount = taxApplicable ? subtotal - subtotal / (1 + settings.taxPercentage / 100) : 0;
-  const netSubtotal = subtotal - taxAmount;
+  const taxAmount = settings.taxEnabled ? subtotal * (settings.taxPercentage / 100) : 0;
+  const grandTotal = subtotal + taxAmount;
 
-  const normalizedSearch = productSearch.trim().toLowerCase();
-  const visibleItems = normalizedSearch
-    ? items.filter(item => {
-        const product = products.find(p => p.id === item.productId);
-        return (product?.name ?? '').toLowerCase().includes(normalizedSearch)
-          || (product?.sku ?? '').toLowerCase().includes(normalizedSearch);
-      })
-    : items;
+  const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = productSearch.trim().toLowerCase();
+      if (!code) return;
 
-  // Barcode/SKU quick-scan: Enter on the scan box matches a product (exact SKU,
-  // then exact name, then the single filtered result), adds one unit and moves
-  // focus straight to that product's quantity field for fast number punching.
-  const handleScanKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
+      const matched = products.find(p =>
+        (p.sku && p.sku.toLowerCase() === code) ||
+        (p.name && p.name.toLowerCase().includes(code))
+      );
 
-    const raw = productSearch.trim();
-    if (!raw) return;
-
-    const lower = raw.toLowerCase();
-    const exactMatch = products.find(p => (p.sku ?? '').trim().toLowerCase() === lower)
-      ?? products.find(p => (p.name ?? '').trim().toLowerCase() === lower)
-      ?? (visibleItems.length === 1 ? products.find(p => p.id === visibleItems[0].productId) : undefined);
-
-    if (!exactMatch) {
-      setScanMessage({ type: 'error', text: `لا يوجد صنف يطابق «${raw}» — تحقق من الباركود أو الرمز.` });
-      return;
+      if (matched) {
+        setItems(prev => prev.map(item => {
+          if (item.productId === matched.id) {
+            return { ...item, quantity: item.quantity + 1 };
+          }
+          return item;
+        }));
+        setScanMessage({ type: 'success', text: `+1 Added: ${matched.name}` });
+        setProductSearch('');
+      } else {
+        setScanMessage({ type: 'error', text: `No matching product found: "${productSearch}"` });
+      }
+      setTimeout(() => setScanMessage(null), 2500);
     }
-
-    setItems(prev => prev.map(item => (item.productId === exactMatch.id
-      ? { ...item, quantity: item.quantity > 0 ? item.quantity + 1 : 1 }
-      : item)));
-    setProductSearch('');
-    setScanMessage({ type: 'success', text: `تمت إضافة ${exactMatch.name} — أدخل الكمية أو امسح التالي.` });
-
-    window.setTimeout(() => {
-      const qtyInput = document.getElementById(`qty-${exactMatch.id}`) as HTMLInputElement | null;
-      qtyInput?.focus();
-      qtyInput?.select();
-    }, 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const selectedItems = items.filter(item => item.quantity > 0);
-    if (!selectedCustomerId || !selectedWarehouseId || selectedItems.length === 0) {
-      setError('يرجى اختيار العميل والمستودع وكتابة كمية صنف واحدة على الأقل.');
+    setError('');
+
+    const validItems = items.filter(i => i.quantity > 0);
+    if (validItems.length === 0) {
+      setError(language === 'ar' ? 'يرجى تحديد كمية لصنف واحد على الأقل.' : 'Please add at least one item quantity.');
+      return;
+    }
+    if (!selectedCustomerId) {
+      setError(language === 'ar' ? 'يرجى اختيار العميل.' : 'Please select a customer.');
+      return;
+    }
+    if (!selectedWarehouseId) {
+      setError(language === 'ar' ? 'يرجى اختيار المستودع.' : 'Please select a warehouse.');
       return;
     }
 
-    // Guard: the backend rejects unit prices <= 0 — surface a clear message up-front.
-    if (selectedItems.some(item => !(item.unitPrice > 0))) {
-      setError('سعر بيع واحد أو أكثر غير صالح (صفر). راجع أسعار الأصناف قبل الحفظ.');
-      return;
-    }
-
-    setIsSubmitting(true);
     try {
+      setIsSubmitting(true);
       const invoice = await createSalesOrder({
         customerId: selectedCustomerId,
         warehouseId: selectedWarehouseId,
-        items: selectedItems.map(i => ({
+        items: validItems.map(i => ({
           productId: i.productId,
           quantity: i.quantity,
           unitPrice: i.unitPrice,
         })),
       });
-      onClose();
+
       onInvoiceCreated(invoice);
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'تعذر حفظ أمر المبيعات.'));
+      onClose();
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to create sales order.';
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const visibleProducts = products.filter(p => {
+    if (!productSearch) return true;
+    const q = productSearch.toLowerCase();
+    return (p.name || '').toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q);
+  });
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col text-right font-sans" dir="rtl">
-        
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-[#1a1c1f] border border-[#26292e] rounded shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700">
-              <ShoppingBag className="w-5 h-5" />
-            </div>
+        <div className="flex items-center justify-between px-5 py-3.5 bg-[#111316] border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#4edea3]">receipt_long</span>
             <div>
-              <h2 className="text-base font-bold text-slate-900">
-                إصدار أمر مبيعات جديد
-              </h2>
-              <p className="text-xs text-slate-500">
-                خطوة واحدة: حفظ الأمر، خصم المخزون، وإصدار الفاتورة تلقائيًا
+              <h3 className="text-sm font-bold text-white">
+                {language === 'ar' ? 'إنشاء أمر مبيعات جديد' : 'New Sales Order Entry'}
+              </h3>
+              <p className="text-[11px] text-[#8f9194]">
+                Direct booking and instantaneous invoice generation
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+            className="p-1 rounded text-[#8f9194] hover:text-white hover:bg-[#282a2d] transition-colors"
           >
-            <X className="w-5 h-5" />
+            <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 flex-1 text-xs">
-          
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+          {error && (
+            <div className="p-3 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs">
+              {error}
+            </div>
+          )}
+
+          {scanMessage && (
+            <div
+              className={`p-2.5 rounded text-xs ${
+                scanMessage.type === 'success'
+                  ? 'bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30'
+                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+              }`}
+            >
+              {scanMessage.text}
+            </div>
+          )}
+
           {/* Customer & Warehouse Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block font-bold text-slate-700 mb-1.5">
-                اسم العميل
+              <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                {language === 'ar' ? 'العميل / الطرف المقابل' : 'Counterparty / Customer'} *
               </label>
               <select
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-medium focus:ring-2 focus:ring-blue-500"
+                required
+                className="w-full px-3 py-2 bg-[#111316] border border-[#26292e] rounded text-xs text-white outline-none focus:border-[#4edea3]"
               >
-                {customers.length === 0 ? (
-                  <option value="">لا يوجد عملاء متاحين</option>
-                ) : (
-                  customers.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))
-                )}
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.company ? `(${c.company})` : ''} - Limit: {formatCurrency(c.creditLimit || 0)}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1.5">
-                المخزن
+              <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                {language === 'ar' ? 'مستودع الصرف' : 'Fulfillment Warehouse'} *
               </label>
               <select
                 value={selectedWarehouseId}
                 onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-medium focus:ring-2 focus:ring-blue-500"
+                required
+                className="w-full px-3 py-2 bg-[#111316] border border-[#26292e] rounded text-xs text-white outline-none focus:border-[#4edea3]"
               >
-                {warehouses.length === 0 ? (
-                  <option value="">لا يوجد مستودعات متاحة</option>
-                ) : (
-                  warehouses.map(w => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.location})
-                    </option>
-                  ))
-                )}
+                {warehouses.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} - {w.location}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* Line Items Table */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                بنود ومحتويات أمر المبيعات
-              </h3>
-              <span className="text-[10px] text-slate-500">اكتب الكمية أمام كل صنف مطلوب</span>
-            </div>
-
-            {/* Barcode / SKU quick-scan box */}
-            <div className="relative">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <input
-                ref={scanInputRef}
-                type="text"
-                autoFocus
-                value={productSearch}
-                onChange={(e) => {
-                  setProductSearch(e.target.value);
-                  if (scanMessage) setScanMessage(null);
-                }}
-                onKeyDown={handleScanKeyDown}
-                placeholder="امسح الباركود أو اكتب SKU ثم اضغط Enter..."
-                className="w-full pr-9 pl-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            {scanMessage && (
-              <p className={`text-[11px] font-bold ${scanMessage.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {scanMessage.text}
-              </p>
-            )}
-
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
-              {visibleItems.map((item) => (
-                <div key={item.id} className="p-3 bg-slate-50/50 grid grid-cols-12 gap-3 items-center">
-                  <div className="col-span-5">
-                    <p className="font-bold text-slate-900">{products.find(product => product.id === item.productId)?.name || 'صنف'}</p>
-                    <p className="text-[10px] text-blue-700">رمز: {products.find(product => product.id === item.productId)?.sku || '—'}</p>
-                  </div>
-
-                  <div className="col-span-3">
-                    <label className="block text-[10px] text-slate-500 font-medium mb-1">
-                      الكمية المطلوبة (اتركها 0 لعدم الاختيار)
-                    </label>
-                    <input
-                      id={`qty-${item.productId}`}
-                      type="number"
-                      value={item.quantity}
-                      min={0}
-                      onChange={(e) => handleQtyChange(item.id, Math.max(0, Number.parseInt(e.target.value, 10) || 0))}
-                      onBlur={(e) => handleQtyChange(item.id, Math.max(0, Number.parseInt(e.target.value, 10) || 0))}
-                      onKeyDown={(e) => {
-                        // After punching the quantity, Enter returns to the scan box
-                        // for the next product — continuous POS-style flow.
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          scanInputRef.current?.focus();
-                        }
-                      }}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-slate-200 text-slate-900 font-mono font-bold text-center"
-                    />
-                  </div>
-
-                  <div className="col-span-3 text-left">
-                    <label className="block text-[10px] text-slate-500 font-medium mb-1">
-                      سعر الوحدة
-                    </label>
-                    <span className="text-xs font-mono font-bold text-slate-700">
-                      {item.unitPrice} {currencySymbol}
-                    </span>
-                  </div>
-
-                  <div className="col-span-1 text-center text-[10px] text-slate-400">{item.quantity > 0 ? 'مختار' : ''}</div>
-                </div>
-              ))}
-              {visibleItems.length === 0 && (
-                <div className="p-4 text-center text-xs text-slate-400">لا توجد أصناف مطابقة للبحث.</div>
-              )}
-            </div>
-          </div>
-
-          {/* VAT breakdown (from system settings) + cash-sale notice */}
-          {taxApplicable && (
-            <div className="rounded-xl bg-white border border-slate-200 p-3 space-y-1 text-xs">
-              <div className="flex justify-between text-slate-600">
-                <span>المجموع قبل الضريبة</span>
-                <span className="font-mono font-bold">{netSubtotal.toFixed(2)} {currencySymbol}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>ضريبة القيمة المضافة ({settings.taxPercentage}%)</span>
-                <span className="font-mono font-bold">{taxAmount.toFixed(2)} {currencySymbol}</span>
-              </div>
-            </div>
-          )}
-          {!settings.creditSalesEnabled && (
-            <p className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
-              البيع الآجل معطّل: سيتم تحصيل كامل المبلغ وإصدار الفاتورة كمدفوعة فور التأكيد (بيع نقدي).
-            </p>
-          )}
-
-          {/* Subtotal & Action */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center text-sm">
-            <div>
-              <span className="font-bold text-slate-900">الإجمالي {taxApplicable ? '(شامل الضريبة)' : 'الصافي'}</span>
-              <span className="block text-[10px] text-slate-500">{selectedItemCount} صنف محدد</span>
-            </div>
-            <span className="font-mono font-extrabold text-blue-700 text-base">
-              {subtotal.toFixed(2)} {currencySymbol}
+          {/* Barcode & Search Input */}
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8f9194]">
+              search
             </span>
+            <input
+              ref={scanInputRef}
+              type="text"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              onKeyDown={handleBarcodeScan}
+              placeholder={language === 'ar' ? 'ابحث عن اسم الصنف أو امسح الباركود واضغط Enter...' : 'Search item name, SKU or scan barcode and press Enter...'}
+              className="w-full pl-9 pr-3 py-2 bg-[#111316] border border-[#26292e] rounded text-xs text-white placeholder-[#8f9194] outline-none focus:border-[#4edea3]"
+            />
           </div>
 
-          {error && <p className="text-xs font-bold text-rose-600">{error}</p>}
+          {/* Line Items Table */}
+          <div className="rounded bg-[#111316] border border-white/5 overflow-hidden">
+            <div className="max-h-60 overflow-y-auto">
+              <table className="w-full text-left font-mono text-xs">
+                <thead className="bg-[#181a1e] sticky top-0 text-[#8f9194] text-[10px] uppercase border-b border-white/5">
+                  <tr>
+                    <th className="py-2 px-3">Item / SKU</th>
+                    <th className="py-2 px-3 text-right">Stock</th>
+                    <th className="py-2 px-3 text-right">Unit Price</th>
+                    <th className="py-2 px-3 text-center w-36">Quantity</th>
+                    <th className="py-2 px-3 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {visibleProducts.map(product => {
+                    const line = items.find(i => i.productId === product.id) || { quantity: 0, unitPrice: product.unitPrice || 0 };
+                    const isSelected = line.quantity > 0;
+                    return (
+                      <tr key={product.id} className={`hover:bg-[#282a2d]/40 transition-colors ${isSelected ? 'bg-[#282a2d]/30' : ''}`}>
+                        <td className="py-2.5 px-3">
+                          <div className="text-white font-sans font-medium">{product.name}</div>
+                          <div className="text-[10px] text-[#8f9194]">{product.sku}</div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-[#8f9194]">
+                          {product.availableStock ?? product.currentStock ?? 0}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-[#8f9194]">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={line.unitPrice}
+                            onChange={(e) => handlePriceChange(`item-${product.id}`, parseFloat(e.target.value) || 0)}
+                            className="w-20 px-1.5 py-0.5 bg-[#1a1c1f] border border-[#26292e] rounded text-right text-xs text-white"
+                          />
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(`item-${product.id}`, line.quantity - 1)}
+                              className="w-6 h-6 rounded bg-[#282a2d] hover:bg-[#333538] text-white flex items-center justify-center font-bold"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={line.quantity}
+                              onChange={(e) => handleQtyChange(`item-${product.id}`, parseInt(e.target.value) || 0)}
+                              className="w-14 px-1 py-0.5 bg-[#1a1c1f] border border-[#26292e] rounded text-center text-xs text-white font-bold"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(`item-${product.id}`, line.quantity + 1)}
+                              className="w-6 h-6 rounded bg-[#282a2d] hover:bg-[#333538] text-white flex items-center justify-center font-bold"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-white">
+                          {formatCurrency(line.quantity * line.unitPrice)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-          <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+          {/* Settlement Summary */}
+          <div className="p-3.5 bg-[#111316] rounded border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+            <div className="text-[#8f9194]">
+              <span>Selected items: </span>
+              <strong className="text-white">{selectedItemCount}</strong>
+            </div>
+
+            <div className="space-y-1 text-right">
+              <div className="text-[#8f9194] flex justify-end gap-3">
+                <span>Subtotal:</span>
+                <span className="text-white font-bold">{formatCurrency(subtotal)}</span>
+              </div>
+              {settings.taxEnabled && (
+                <div className="text-[#8f9194] flex justify-end gap-3">
+                  <span>VAT ({settings.taxPercentage}%):</span>
+                  <span>{formatCurrency(taxAmount)}</span>
+                </div>
+              )}
+              <div className="text-base text-white font-bold flex justify-end gap-3 pt-1 border-t border-white/10">
+                <span>Total Settlement:</span>
+                <span className="text-[#4edea3]">{formatCurrency(grandTotal)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              className="px-4 py-2 rounded bg-[#282a2d] hover:bg-[#333538] text-[#8f9194] hover:text-white text-xs font-semibold cursor-pointer"
             >
-              إلغاء
+              Cancel
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition"
+              disabled={isSubmitting || selectedItemCount === 0}
+              className={`px-5 py-2 rounded font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                selectedItemCount > 0 && !isSubmitting
+                  ? 'bg-[#ffffff] hover:bg-[#e2e2e4] text-[#111316] shadow-md'
+                  : 'bg-[#282a2d] text-[#8f9194] cursor-not-allowed'
+              }`}
             >
-              {isSubmitting && <LoaderCircle className="w-3.5 h-3.5 animate-spin" />} {isSubmitting ? 'جارٍ الحفظ والتأكيد والإصدار' : 'حفظ وتأكيد وإصدار الفاتورة'}
+              {isSubmitting ? 'Confirming Order...' : 'Confirm & Generate Invoice'}
             </button>
           </div>
-
         </form>
       </div>
     </div>

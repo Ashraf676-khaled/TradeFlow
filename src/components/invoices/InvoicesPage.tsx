@@ -1,28 +1,19 @@
 import React, { useState } from 'react';
-import { 
-  FileText, 
-  Search, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Eye, 
-  Clock,
-  CreditCard
-} from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { Invoice, PaymentStatus } from '../../types';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
 
 export const InvoicesPage: React.FC = () => {
-  const { invoices, currencySymbol } = useTenant();
+  const { invoices, formatCurrency, language } = useTenant();
 
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // Compute metrics
-  const totalBilled = invoices.reduce((sum, i) => sum + (i.totalAmount ?? 0), 0);
-  const totalCollected = invoices.reduce((sum, i) => sum + (i.paidAmount ?? 0), 0);
-  const totalOutstanding = invoices.reduce((sum, i) => sum + (i.balanceDue ?? 0), 0);
+  const totalBilled = invoices.reduce((sum, i) => sum + (Number(i.totalAmount) || 0), 0);
+  const totalCollected = invoices.reduce((sum, i) => sum + (Number(i.paidAmount) || 0), 0);
+  const totalOutstanding = invoices.reduce((sum, i) => sum + (Number(i.balanceDue) || 0), 0);
   const overdueCount = invoices.filter(i => i.status === 'متأخر').length;
 
   const filteredInvoices = invoices.filter(inv => {
@@ -31,122 +22,117 @@ export const InvoicesPage: React.FC = () => {
     const invNum = (inv.invoiceNumber ?? '').toLowerCase();
     const cust = (inv.customerName ?? '').toLowerCase();
     const ordNum = (inv.orderNumber ?? '').toLowerCase();
-    const matchesSearch = invNum.includes(q) || cust.includes(q) || ordNum.includes(q);
-    return matchesTab && matchesSearch;
+    return matchesTab && (invNum.includes(q) || cust.includes(q) || ordNum.includes(q));
   });
 
-  const getStatusBadge = (status: PaymentStatus) => {
-    switch (status) {
-      case 'مدفوع':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3" /> مدفوع بالكامل
-          </span>
-        );
-      case 'مدفوع جزئياً':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-            <CreditCard className="w-3 h-3" /> مدفوع جزئياً
-          </span>
-        );
-      case 'غير مدفوع':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-            <Clock className="w-3 h-3" /> غير مدفوع
-          </span>
-        );
-      case 'متأخر':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-            <AlertTriangle className="w-3 h-3 text-rose-600" /> متأخر عن السداد
-          </span>
-        );
-      case 'ملغاة':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
-            ملغاة
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-            {status || 'غير محدد'}
-          </span>
-        );
-    }
+  const handleExportCSV = () => {
+    const csvContent = "data:text/csv;charset=utf-8," +
+      ["Invoice #,Order #,Customer,Total,Paid,Balance,Status,Date",
+        ...filteredInvoices.map(i => `"${i.invoiceNumber}","${i.orderNumber || ''}","${i.customerName || ''}",${i.totalAmount},${i.paidAmount},${i.balanceDue},"${i.status}","${i.issueDate || ''}"`)
+      ].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `tradeflow_invoices_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      
-      {/* Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4">
+      {/* Header Banner */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-700" /> الفواتير الحسابية والتحصيل
+          <h1 className="text-2xl font-semibold text-white tracking-tight">
+            {language === 'ar' ? 'الفواتير والتحصيل المالي' : 'Billing & Invoice Ledger'}
           </h1>
-          <p className="text-xs text-slate-500">
-            متابعة التحصيلات المالية، سداد المستحقات، والفواتير الضريبية للعملاء.
-          </p>
-        </div>
-      </div>
-
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-bold text-slate-500">إجمالي الفواتير المفلترة</p>
-          <h3 className="text-xl font-extrabold text-slate-900 mt-1">
-            {totalBilled.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
-          </h3>
-          <p className="text-[10px] text-slate-400 mt-1">{invoices.length} سجل فاتورة صادرة</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-bold text-slate-500">المبالغ المحصلة فعلياً</p>
-          <h3 className="text-xl font-extrabold text-emerald-700 mt-1">
-            {totalCollected.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
-          </h3>
-          <p className="text-[10px] text-emerald-700 mt-1 font-bold">
-            نسبة التحصيل: {Math.round((totalCollected / (totalBilled || 1)) * 100)}%
+          <p className="text-xs text-[#8f9194] mt-0.5">
+            {language === 'ar'
+              ? 'سجل الفواتير الضريبية ومتابعة تحصيل الدفعات وتسوية الذمم'
+              : 'Institutional receivables ledger, tax invoicing, and instant payment settlement'}
           </p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-bold text-slate-500">المبالغ المتبقية في ذمة العملاء</p>
-          <h3 className="text-xl font-extrabold text-amber-700 mt-1">
-            {totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
-          </h3>
-          <p className="text-[10px] text-slate-400 mt-1">رصيد آجل بانتظار السداد</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-          <p className="text-xs font-bold text-slate-500">الفواتير المتأخرة</p>
-          <h3 className="text-xl font-extrabold text-rose-700 mt-1">
-            {overdueCount} <span className="text-xs font-normal text-slate-400">فواتير</span>
-          </h3>
-          <p className="text-[10px] text-rose-600 mt-1 font-bold">تتطلب إرسال إشعار تذكير</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1c1f] hover:bg-[#282a2d] text-[#e2e2e6] rounded text-xs transition-colors border border-white/5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm text-[#8f9194]">file_download</span>
+            <span>{language === 'ar' ? 'تصدير السجل' : 'Export Ledger'}</span>
+          </button>
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-        
-        {/* Status Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5">
+          <span className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+            {language === 'ar' ? 'إجمالي المطالبات' : 'Total Billed Value'}
+          </span>
+          <div className="text-xl font-bold font-mono text-white mt-1">
+            {formatCurrency(totalBilled)}
+          </div>
+          <div className="text-[10px] text-[#8f9194] mt-1 font-mono">
+            {invoices.length} invoices generated
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5">
+          <span className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+            {language === 'ar' ? 'المبالغ المحصلة' : 'Collected Receipts'}
+          </span>
+          <div className="text-xl font-bold font-mono text-[#4edea3] mt-1">
+            {formatCurrency(totalCollected)}
+          </div>
+          <div className="text-[10px] text-[#8f9194] mt-1">
+            {totalBilled > 0 ? ((totalCollected / totalBilled) * 100).toFixed(1) : 100}% collected
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5">
+          <span className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+            {language === 'ar' ? 'الرصيد المتبقي' : 'Outstanding Balance'}
+          </span>
+          <div className={`text-xl font-bold font-mono mt-1 ${totalOutstanding > 0 ? 'text-amber-400' : 'text-white'}`}>
+            {formatCurrency(totalOutstanding)}
+          </div>
+          <div className="text-[10px] text-[#8f9194] mt-1">
+            Across active counterparties
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5">
+          <span className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+            {language === 'ar' ? 'الفواتير المتأخرة' : 'Overdue Invoices'}
+          </span>
+          <div className={`text-xl font-bold font-mono mt-1 ${overdueCount > 0 ? 'text-rose-400' : 'text-white'}`}>
+            {overdueCount} accounts
+          </div>
+          <div className="text-[10px] text-[#8f9194] mt-1">
+            {overdueCount === 0 ? 'All collections on schedule' : 'Requires immediate attention'}
+          </div>
+        </div>
+      </div>
+
+      {/* Filter and Search Ribbon */}
+      <div className="p-3 rounded bg-[#1a1c1f] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1 bg-[#111316] p-0.5 rounded border border-white/5">
           {[
-            { id: 'all', label: 'جميع الفواتير' },
-            { id: 'مدفوع', label: 'مدفوع بالكامل' },
-            { id: 'مدفوع جزئياً', label: 'مدفوع جزئياً' },
-            { id: 'غير مدفوع', label: 'غير مدفوع' },
-            { id: 'متأخر', label: 'متأخر' },
-          ].map((tab) => (
+            { id: 'all', label: language === 'ar' ? 'الكل' : 'All' },
+            { id: 'غير مدفوع', label: language === 'ar' ? 'غير مدفوع' : 'Unpaid' },
+            { id: 'مدفوع جزئياً', label: language === 'ar' ? 'مدفوع جزئياً' : 'Partial' },
+            { id: 'مدفوع', label: language === 'ar' ? 'مدفوع بالكامل' : 'Paid' },
+            { id: 'متأخر', label: language === 'ar' ? 'متأخر' : 'Overdue' },
+          ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                 activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-[#282a2d] text-white shadow-xs'
+                  : 'text-[#8f9194] hover:text-[#e2e2e6]'
               }`}
             >
               {tab.label}
@@ -154,81 +140,99 @@ export const InvoicesPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Search */}
         <div className="relative w-full md:w-64">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[#8f9194]">
+            search
+          </span>
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="البحث برقم الفاتورة، العميل..."
-            className="w-full pr-9 pl-3 py-1.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={language === 'ar' ? 'بحث برقم الفاتورة أو العميل...' : 'Search Invoice #, Client...'}
+            className="w-full pl-8 pr-3 py-1.5 bg-[#111316] border border-white/10 rounded text-xs text-white placeholder-[#8f9194] outline-none focus:border-[#4edea3]"
           />
         </div>
-
       </div>
 
       {/* Invoices Table */}
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+      <div className="rounded bg-[#1a1c1f] border border-white/5 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold bg-slate-50">
-                <th className="py-3 px-4">رقم الفاتورة</th>
-                <th className="py-3 px-4">العميل المفوتر</th>
-                <th className="py-3 px-4">تاريخ الإصدار</th>
-                <th className="py-3 px-4">تاريخ الاستحقاق</th>
-                <th className="py-3 px-4 text-left">الإجمالي المفوتر</th>
-                <th className="py-3 px-4 text-left">المتبقي غير المدفوع</th>
-                <th className="py-3 px-4 text-center">حالة الفاتورة</th>
-                <th className="py-3 px-4 text-left">إجراءات</th>
+              <tr className="bg-[#111316] text-[#8f9194] text-[11px] font-semibold uppercase tracking-wider border-b border-white/5">
+                <th className="py-2.5 px-3">Invoice #</th>
+                <th className="py-2.5 px-3">Ref Order</th>
+                <th className="py-2.5 px-3">Counterparty</th>
+                <th className="py-2.5 px-3 text-right">Total Billed</th>
+                <th className="py-2.5 px-3 text-right">Paid</th>
+                <th className="py-2.5 px-3 text-right">Balance Due</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-center">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/5 text-xs font-mono">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400 text-xs">
-                    لا توجد فواتير مطابقة لمعايير البحث.
+                  <td colSpan={8} className="py-12 text-center text-xs text-[#8f9194] font-sans">
+                    {language === 'ar' ? 'لم يتم العثور على فواتير' : 'No invoices found.'}
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50 transition">
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
-                      {inv.invoiceNumber ?? '—'}
+                filteredInvoices.map(invoice => (
+                  <tr
+                    key={invoice.id}
+                    onClick={() => setSelectedInvoice(invoice)}
+                    className="hover:bg-[#282a2d]/50 transition-colors cursor-pointer"
+                  >
+                    <td className="py-3 px-3 text-white font-bold">
+                      {invoice.invoiceNumber}
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-800">
-                      <div>{inv.customerName ?? 'غير محدد'}</div>
-                      <div className="text-[10px] font-mono text-slate-400">{inv.orderNumber ?? '—'}</div>
+
+                    <td className="py-3 px-3 text-[#8f9194]">
+                      {invoice.orderNumber || 'Direct'}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono">
-                      {inv.issueDate ?? '—'}
+
+                    <td className="py-3 px-3 font-sans text-[#e2e2e6] font-medium">
+                      {invoice.customerName}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono">
-                      {inv.dueDate ?? '—'}
+
+                    <td className="py-3 px-3 text-right font-bold text-white">
+                      {formatCurrency(Number(invoice.totalAmount) || 0)}
                     </td>
-                    <td className="py-3.5 px-4 text-left font-mono font-extrabold text-slate-900">
-                      {(inv.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} {currencySymbol}
+
+                    <td className="py-3 px-3 text-right text-[#4edea3]">
+                      {formatCurrency(Number(invoice.paidAmount) || 0)}
                     </td>
-                    <td className="py-3.5 px-4 text-left font-mono">
-                      {(inv.balanceDue ?? 0) > 0.009 ? (
-                        <span className="font-extrabold text-blue-700">
-                          {(inv.balanceDue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} {currencySymbol}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300" title="الفاتورة مسددة بالكامل">—</span>
-                      )}
+
+                    <td className="py-3 px-3 text-right">
+                      <span className={invoice.balanceDue && invoice.balanceDue > 0 ? 'text-amber-400 font-bold' : 'text-[#8f9194]'}>
+                        {formatCurrency(Number(invoice.balanceDue) || 0)}
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 text-center">
-                      {getStatusBadge(inv.status)}
+
+                    <td className="py-3 px-3 font-sans">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        invoice.status === 'مدفوع'
+                          ? 'bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30'
+                          : invoice.status === 'مدفوع جزئياً'
+                          ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                          : invoice.status === 'متأخر'
+                          ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        {invoice.status}
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 text-left">
+
+                    <td className="py-3 px-3 text-center">
                       <button
-                        onClick={() => setSelectedInvoice(inv)}
-                        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-100 hover:text-blue-700 transition"
-                        title="معاينة الفاتورة وتسجيل الدفعة"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedInvoice(invoice);
+                        }}
+                        className="px-2 py-1 rounded bg-[#282a2d] hover:bg-[#333538] text-white text-[11px] font-sans transition-colors cursor-pointer"
                       >
-                        <Eye className="h-3.5 w-3.5" /> عرض
+                        Inspect
                       </button>
                     </td>
                   </tr>
@@ -239,12 +243,10 @@ export const InvoicesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Invoice Detail Modal */}
       <InvoiceDetailModal
         invoice={selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
       />
-
     </div>
   );
 };

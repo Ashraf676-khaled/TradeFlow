@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Settings, Save, Percent, CreditCard, AlertTriangle, Printer, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { SystemSettings } from '../../types';
-import { getApiErrorMessage } from '../../services/apiClient';
 
 interface ToggleProps {
   enabled: boolean;
@@ -17,22 +15,25 @@ const Toggle: React.FC<ToggleProps> = ({ enabled, onChange, label }) => (
     aria-checked={enabled}
     aria-label={label}
     onClick={() => onChange(!enabled)}
-    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
-      enabled ? 'bg-blue-600 justify-end' : 'bg-slate-300 justify-start'
+    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+      enabled ? 'bg-[#10b981]' : 'bg-[#282a2d]'
     }`}
   >
-    <span className="mx-0.5 inline-block h-5 w-5 transform rounded-full bg-white shadow transition" />
+    <span
+      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+        enabled ? 'translate-x-6' : 'translate-x-1'
+      }`}
+    />
   </button>
 );
 
 export const SettingsPage: React.FC = () => {
-  const { settings, updateSettings } = useTenant();
+  const { settings, updateSettings, language } = useTenant();
 
   const [draft, setDraft] = useState<SystemSettings>(settings);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // Keep the form in sync whenever fresh settings arrive (initial load / refresh).
   useEffect(() => {
     setDraft(settings);
   }, [settings]);
@@ -43,11 +44,11 @@ export const SettingsPage: React.FC = () => {
     const taxPercentage = Number(draft.taxPercentage);
     const lowStockThreshold = Number(draft.lowStockThreshold);
     if (!Number.isFinite(taxPercentage) || taxPercentage < 0 || taxPercentage > 100 || (draft.taxEnabled && taxPercentage <= 0)) {
-      setMessage({ ok: false, text: 'أدخل نسبة ضريبة صحيحة أكبر من صفر (وأقل من أو تساوي 100).' });
+      setMessage({ ok: false, text: language === 'ar' ? 'أدخل نسبة ضريبة صحيحة أكبر من صفر.' : 'Please enter a valid tax percentage between 0 and 100.' });
       return;
     }
     if (!Number.isFinite(lowStockThreshold) || lowStockThreshold < 0) {
-      setMessage({ ok: false, text: 'حد تنبيه المخزون يجب أن يكون صفرًا أو أكثر.' });
+      setMessage({ ok: false, text: language === 'ar' ? 'حد تنبيه المخزون يجب أن يكون صفرًا أو أكثر.' : 'Stock warning threshold must be 0 or greater.' });
       return;
     }
 
@@ -60,170 +61,178 @@ export const SettingsPage: React.FC = () => {
         lowStockThreshold: Math.round(lowStockThreshold),
         invoiceLayoutStyle: draft.invoiceLayoutStyle,
       });
-      setMessage({ ok: true, text: 'تم حفظ إعدادات النظام بنجاح.' });
-    } catch (error) {
-      setMessage({ ok: false, text: getApiErrorMessage(error, 'تعذر حفظ الإعدادات.') });
+      setMessage({ ok: true, text: language === 'ar' ? 'تم حفظ إعدادات النظام بنجاح.' : 'System configuration saved successfully.' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err: any) {
+      setMessage({ ok: false, text: err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to update settings.' });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const cardClass = 'rounded-2xl bg-white border border-slate-200 shadow-sm p-6 space-y-4';
-
   return (
-    <div className="space-y-6 animate-in fade-in duration-300" dir="rtl">
-      {/* Title */}
+    <div className="space-y-4 max-w-4xl">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <Settings className="w-5 h-5 text-blue-700" /> إعدادات النظام
+          <h1 className="text-2xl font-semibold text-white tracking-tight">
+            {language === 'ar' ? 'إعدادات النظام والتهيئة' : 'System Configuration & Settings'}
           </h1>
-          <p className="text-xs text-slate-500">
-            تحكم ديناميكي في الضريبة، البيع الآجل، تنبيهات المخزون وتنسيق طباعة الفواتير — بدون تعديل الكود.
+          <p className="text-xs text-[#8f9194] mt-0.5">
+            {language === 'ar'
+              ? 'ضبط نسب الضرائب، البيع الآجل، تنبيهات إعادة الطلب وقوالب الطباعة'
+              : 'Global institutional parameters, tax rates, risk limits, and invoice rendering templates'}
           </p>
         </div>
 
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60 shadow-sm transition"
+          className="flex items-center gap-1.5 px-4 py-2 bg-[#ffffff] hover:bg-[#e2e2e4] text-[#111316] font-bold rounded text-xs transition-all shadow-md cursor-pointer"
         >
-          {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {isSaving ? 'جارٍ الحفظ...' : 'حفظ الإعدادات'}
+          <span className="material-symbols-outlined text-sm font-bold">save</span>
+          <span>{isSaving ? 'Saving...' : 'Save Settings'}</span>
         </button>
       </div>
 
       {message && (
         <div
-          className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-            message.ok ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700'
+          className={`p-3 rounded text-xs ${
+            message.ok
+              ? 'bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30'
+              : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
           }`}
         >
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
           {message.text}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* VAT / Tax */}
-        <section className={cardClass}>
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700"><Percent className="w-5 h-5" /></div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">ضريبة القيمة المضافة (VAT)</h2>
-                <p className="text-[11px] text-slate-500">تفعيل/تعطيل احتساب الضريبة وتحديد نسبتها.</p>
-              </div>
+      {/* Settings Sections */}
+      <div className="space-y-4 font-sans text-xs">
+        {/* Tax Settings */}
+        <div className="p-4 rounded bg-[#1a1c1f] border border-white/5 space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#4edea3] text-base">percent</span>
+                {language === 'ar' ? 'ضريبة القيمة المضافة (VAT)' : 'Value Added Tax (VAT)'}
+              </h2>
+              <p className="text-[#8f9194]">
+                Enable automatic tax calculations on sales orders and generated billing invoices.
+              </p>
             </div>
-            <Toggle enabled={draft.taxEnabled} onChange={v => setDraft(d => ({ ...d, taxEnabled: v }))} label="تفعيل الضريبة" />
+            <Toggle
+              enabled={draft.taxEnabled}
+              onChange={(enabled) => setDraft({ ...draft, taxEnabled: enabled })}
+              label="Enable Tax"
+            />
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-[10px] font-bold text-slate-600">نسبة الضريبة (%)</label>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              disabled={!draft.taxEnabled}
-              value={draft.taxPercentage}
-              onChange={e => setDraft(d => ({ ...d, taxPercentage: Number(e.target.value) }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono font-bold disabled:bg-slate-50 disabled:text-slate-400"
+          {draft.taxEnabled && (
+            <div className="pt-3 border-t border-white/5 flex items-center gap-3">
+              <label className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+                VAT Percentage (%)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={draft.taxPercentage}
+                onChange={(e) => setDraft({ ...draft, taxPercentage: parseFloat(e.target.value) || 0 })}
+                className="w-24 px-2 py-1 bg-[#111316] border border-[#26292e] rounded text-white font-mono outline-none focus:border-[#4edea3]"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Credit Facilities */}
+        <div className="p-4 rounded bg-[#1a1c1f] border border-white/5 space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#4edea3] text-base">credit_card</span>
+                {language === 'ar' ? 'البيع الآجل والتسهيلات الائتمانية' : 'Credit Sales & Revolving Accounts'}
+              </h2>
+              <p className="text-[#8f9194]">
+                Permit checkout on account without immediate settlement up to customer credit limits.
+              </p>
+            </div>
+            <Toggle
+              enabled={draft.creditSalesEnabled}
+              onChange={(enabled) => setDraft({ ...draft, creditSalesEnabled: enabled })}
+              label="Enable Credit Sales"
             />
-            <p className="text-[10px] text-slate-400">
-              الأسعار الحالية تُعامل كأسعار شاملة للضريبة، ويُعرض تفصيلها في الفاتورة وشاشة الطباعة.
+          </div>
+        </div>
+
+        {/* Low Stock Alerts */}
+        <div className="p-4 rounded bg-[#1a1c1f] border border-white/5 space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-400 text-base">warning</span>
+                {language === 'ar' ? 'حد تنبيه انخفاض المخزون' : 'Default Low-Stock Threshold'}
+              </h2>
+              <p className="text-[#8f9194]">
+                Inventory items at or below this quantity trigger low-stock alerts across dashboards.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                value={draft.lowStockThreshold}
+                onChange={(e) => setDraft({ ...draft, lowStockThreshold: parseInt(e.target.value) || 0 })}
+                className="w-20 px-2 py-1 bg-[#111316] border border-[#26292e] rounded text-white font-mono text-center outline-none focus:border-[#4edea3]"
+              />
+              <span className="text-[#8f9194]">units</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice Layout Template */}
+        <div className="p-4 rounded bg-[#1a1c1f] border border-white/5 space-y-3">
+          <div className="space-y-0.5">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#4edea3] text-base">print</span>
+              {language === 'ar' ? 'قالب طباعة الفواتير' : 'Invoice Voucher Print Format'}
+            </h2>
+            <p className="text-[#8f9194]">
+              Select default layout between standard institutional A4 format and 80mm POS thermal receipt.
             </p>
           </div>
-        </section>
 
-        {/* Credit / Deferred Sales */}
-        <section className={cardClass}>
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700"><CreditCard className="w-5 h-5" /></div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">البيع الآجل / الدفع المؤجل (الأجل)</h2>
-                <p className="text-[11px] text-slate-500">السماح بإصدار الفواتير كرصيد مستحق على العميل.</p>
-              </div>
-            </div>
-            <Toggle enabled={draft.creditSalesEnabled} onChange={v => setDraft(d => ({ ...d, creditSalesEnabled: v }))} label="تفعيل البيع الآجل" />
-          </div>
-
-          <div className={`p-3 rounded-xl border text-[11px] leading-relaxed ${
-            draft.creditSalesEnabled
-              ? 'bg-blue-50 border-blue-100 text-blue-800'
-              : 'bg-amber-50 border-amber-100 text-amber-800'
-          }`}>
-            {draft.creditSalesEnabled
-              ? 'مفعّل: عند تأكيد الطلب تُصدر الفاتورة غير المدفوعة (رصيد مستحق على العميل) ويمكن تحصيلها لاحقًا.'
-              : 'معطّل (بيع نقدي/POS): عند تأكيد الطلب يُحصَّل المبلغ كاملًا وتُصدر الفاتورة كمدفوعة تلقائيًا في نفس عملية التأكيد.'}
-          </div>
-        </section>
-
-        {/* Low stock threshold */}
-        <section className={cardClass}>
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700"><AlertTriangle className="w-5 h-5" /></div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">حد تنبيه المخزون المنخفض</h2>
-              <p className="text-[11px] text-slate-500">الحد الافتراضي الذي تُطلق عنده تنبيهات إعادة الطلب.</p>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-[10px] font-bold text-slate-600">الحد الافتراضي (عدد الوحدات)</label>
-            <input
-              type="number"
-              min={0}
-              value={draft.lowStockThreshold}
-              onChange={e => setDraft(d => ({ ...d, lowStockThreshold: Number(e.target.value) }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono font-bold"
-            />
-            <p className="text-[10px] text-slate-400">
-              يُستخدم للأصناف التي لم يُحدد لها حد مخصص، ويُستخدم أيضًا كقيمة افتراضي جديدة في نموذج إضافة الصنف.
-            </p>
-          </div>
-        </section>
-
-        {/* Invoice print layout */}
-        <section className={cardClass}>
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-            <div className="p-2.5 rounded-xl bg-violet-50 text-violet-700"><Printer className="w-5 h-5" /></div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">تنسيق طباعة الفاتورة الافتراضي</h2>
-              <p className="text-[11px] text-slate-500">يُستخدم كوضع معاينة وطباعة افتراضي للفاتورة.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setDraft(d => ({ ...d, invoiceLayoutStyle: 'A4' }))}
-              className={`rounded-xl border p-4 text-right transition ${
-                draft.invoiceLayoutStyle === 'A4'
-                  ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-600/20'
-                  : 'border-slate-200 hover:border-slate-300'
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div
+              onClick={() => setDraft({ ...draft, invoiceLayoutStyle: 'A4' })}
+              className={`p-3 rounded border cursor-pointer transition-all ${
+                draft.invoiceLayoutStyle !== 'Thermal'
+                  ? 'bg-[#282a2d] border-[#4edea3]'
+                  : 'bg-[#111316] border-[#26292e] hover:border-white/20'
               }`}
             >
-              <Printer className="w-4 h-4 mb-2 text-blue-700" />
-              <p className="text-xs font-bold text-slate-900">قياسي A4</p>
-              <p className="text-[10px] text-slate-500">طباعة على ورق A4 للأرشيف والفوترة الرسمية</p>
-            </button>
+              <div className="font-bold text-white mb-1">Standard A4 Format</div>
+              <div className="text-[11px] text-[#8f9194]">
+                Comprehensive formal invoice layout for enterprise clients.
+              </div>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setDraft(d => ({ ...d, invoiceLayoutStyle: 'Thermal' }))}
-              className={`rounded-xl border p-4 text-right transition ${
+            <div
+              onClick={() => setDraft({ ...draft, invoiceLayoutStyle: 'Thermal' })}
+              className={`p-3 rounded border cursor-pointer transition-all ${
                 draft.invoiceLayoutStyle === 'Thermal'
-                  ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-600/20'
-                  : 'border-slate-200 hover:border-slate-300'
+                  ? 'bg-[#282a2d] border-[#4edea3]'
+                  : 'bg-[#111316] border-[#26292e] hover:border-white/20'
               }`}
             >
-              <Printer className="w-4 h-4 mb-2 text-violet-700" />
-              <p className="text-xs font-bold text-slate-900">حراري 80mm</p>
-              <p className="text-[10px] text-slate-500">رول حراري للكاشير ونقاط البيع السريعة</p>
-            </button>
+              <div className="font-bold text-white mb-1">80mm Thermal Receipt (POS)</div>
+              <div className="text-[11px] text-[#8f9194]">
+                Compact receipt format for direct point-of-sale thermal printers.
+              </div>
+            </div>
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );

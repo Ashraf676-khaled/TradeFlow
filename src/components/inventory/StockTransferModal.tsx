@@ -2,23 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { useTenant } from '../../context/TenantContext';
 import { Product } from '../../types';
 
-interface StockAdjustModalProps {
+interface StockTransferModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialProduct?: Product | null;
 }
 
-export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
+export const StockTransferModal: React.FC<StockTransferModalProps> = ({
   isOpen,
   onClose,
   initialProduct,
 }) => {
-  const { products, warehouses, formatCurrency, receiveStock, language } = useTenant();
+  const { products, warehouses, transferStock, language } = useTenant();
 
   const [selectedProductId, setSelectedProductId] = useState(initialProduct?.id || products[0]?.id || '');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState(warehouses[0]?.id || '');
-  const [quantity, setQuantity] = useState<number>(10);
-  const [unitCost, setUnitCost] = useState<number>(100);
+  const [sourceWarehouseId, setSourceWarehouseId] = useState(warehouses[0]?.id || '');
+  const [targetWarehouseId, setTargetWarehouseId] = useState(warehouses[1]?.id || warehouses[0]?.id || '');
+  const [quantity, setQuantity] = useState<number>(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,28 +26,30 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
     if (!isOpen) return;
     const prod = initialProduct || products[0];
     setSelectedProductId(prod?.id || '');
-    setSelectedWarehouseId(warehouses[0]?.id || '');
-    setUnitCost(prod?.costPrice || 100);
+    setSourceWarehouseId(warehouses[0]?.id || '');
+    setTargetWarehouseId(warehouses[1]?.id || warehouses[0]?.id || '');
     setError('');
   }, [isOpen, initialProduct, products, warehouses]);
 
   if (!isOpen) return null;
 
-  const product = products.find(p => p.id === selectedProductId) || products[0];
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!product || !selectedWarehouseId || quantity <= 0 || unitCost < 0) {
-      setError(language === 'ar' ? 'يرجى إدخال المستودع والكمية والتكلفة بشكل صحيح.' : 'Please provide a valid warehouse, quantity, and unit cost.');
+    if (sourceWarehouseId === targetWarehouseId) {
+      setError(language === 'ar' ? 'لا يمكن التحويل إلى نفس المستودع.' : 'Source and target warehouses cannot be the same.');
+      return;
+    }
+    if (quantity <= 0) {
+      setError(language === 'ar' ? 'يرجى إدخال كمية صالحة.' : 'Please enter a valid transfer quantity.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await receiveStock(selectedWarehouseId, product.id, quantity, unitCost);
+      await transferStock(sourceWarehouseId, targetWarehouseId, selectedProductId, quantity);
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to receive inventory.');
+      setError(err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to transfer stock.');
     } finally {
       setIsSubmitting(false);
     }
@@ -59,12 +61,12 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/5">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#4edea3]">add_box</span>
+            <span className="material-symbols-outlined text-amber-400">swap_horiz</span>
             <div>
               <h3 className="text-sm font-bold text-white">
-                {language === 'ar' ? 'توريد واستلام مخزون' : 'Receive Goods & Stock In'}
+                {language === 'ar' ? 'تحويل مخزون بين المستودعات' : 'Inter-Warehouse Stock Transfer'}
               </h3>
-              <p className="text-[11px] text-[#8f9194]">Direct inbound logistics entry</p>
+              <p className="text-[11px] text-[#8f9194]">Internal logistics relocation</p>
             </div>
           </div>
           <button
@@ -84,15 +86,11 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-3 font-sans">
           <div>
             <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
-              {language === 'ar' ? 'الصنف المستلم' : 'Product / Instrument'}
+              {language === 'ar' ? 'الصنف المحول' : 'Product / Instrument'}
             </label>
             <select
               value={selectedProductId}
-              onChange={(e) => {
-                setSelectedProductId(e.target.value);
-                const p = products.find(prod => prod.id === e.target.value);
-                if (p) setUnitCost(p.costPrice || 0);
-              }}
+              onChange={(e) => setSelectedProductId(e.target.value)}
               className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs text-white focus:border-[#4edea3] outline-none"
             >
               {products.map(p => (
@@ -103,55 +101,53 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
             </select>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
-              {language === 'ar' ? 'المستودع المستلم' : 'Receiving Warehouse'}
-            </label>
-            <select
-              value={selectedWarehouseId}
-              onChange={(e) => setSelectedWarehouseId(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs text-white focus:border-[#4edea3] outline-none"
-            >
-              {warehouses.map(w => (
-                <option key={w.id} value={w.id}>
-                  {w.name} - {w.location}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
-                {language === 'ar' ? 'الكمية المستلمة' : 'Quantity Units'}
+                {language === 'ar' ? 'من مستودع (المصدر)' : 'Source Warehouse'}
               </label>
-              <input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
-                className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs font-mono text-white focus:border-[#4edea3] outline-none"
-              />
+              <select
+                value={sourceWarehouseId}
+                onChange={(e) => setSourceWarehouseId(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs text-white focus:border-[#4edea3] outline-none"
+              >
+                {warehouses.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
-                {language === 'ar' ? 'تكلفة الوحدة' : 'Unit Cost'}
+                {language === 'ar' ? 'إلى مستودع (الوجهة)' : 'Target Warehouse'}
               </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={unitCost}
-                onChange={(e) => setUnitCost(Math.max(0, parseFloat(e.target.value) || 0))}
-                className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs font-mono text-white focus:border-[#4edea3] outline-none"
-              />
+              <select
+                value={targetWarehouseId}
+                onChange={(e) => setTargetWarehouseId(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs text-white focus:border-[#4edea3] outline-none"
+              >
+                {warehouses.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div className="p-2.5 bg-[#111316] rounded border border-white/5 flex justify-between text-xs font-mono">
-            <span className="text-[#8f9194]">Total Inbound Value:</span>
-            <span className="text-[#4edea3] font-bold">{formatCurrency(quantity * unitCost)}</span>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+              {language === 'ar' ? 'الكمية المحولة' : 'Transfer Quantity Units'}
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
+              className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs font-mono text-white focus:border-[#4edea3] outline-none"
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
@@ -167,7 +163,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
               disabled={isSubmitting}
               className="px-4 py-1.5 rounded bg-[#ffffff] hover:bg-[#e2e2e4] text-[#111316] font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
             >
-              {isSubmitting ? 'Receiving...' : 'Record Inbound Stock'}
+              {isSubmitting ? 'Transferring...' : 'Execute Stock Relocation'}
             </button>
           </div>
         </form>

@@ -1,20 +1,13 @@
 import React, { useState } from 'react';
-import { X, Warehouse, MapPin, CheckCircle2 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
-import { getApiErrorMessage } from '../../services/apiClient';
 
 interface WarehouseModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-/**
- * Professional RTL dialog for creating a warehouse. Wraps the existing
- * `createWarehouse` context action (POST /api/warehouses) and mirrors the
- * backend limits: Name ≤ 150 chars, Location ≤ 300 chars, both required.
- */
 export const WarehouseModal: React.FC<WarehouseModalProps> = ({ isOpen, onClose }) => {
-  const { createWarehouse } = useTenant();
+  const { createWarehouse, language } = useTenant();
 
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
@@ -37,7 +30,7 @@ export const WarehouseModal: React.FC<WarehouseModalProps> = ({ isOpen, onClose 
     const trimmedLocation = location.trim();
 
     if (!trimmedName || !trimmedLocation) {
-      setError('اسم المستودع وموقعه مطلوبان.');
+      setError(language === 'ar' ? 'اسم المستودع وموقعه مطلوبان.' : 'Warehouse name and location are required.');
       return;
     }
 
@@ -46,93 +39,88 @@ export const WarehouseModal: React.FC<WarehouseModalProps> = ({ isOpen, onClose 
     try {
       await createWarehouse({ name: trimmedName, location: trimmedLocation });
       resetAndClose();
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'تعذر حفظ المستودع.'));
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to save warehouse.');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200" dir="rtl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden text-right"
+        className="w-full max-w-md bg-[#1a1c1f] border border-[#26292e] rounded shadow-2xl p-5 space-y-4"
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
-              <Warehouse className="w-4 h-4" />
-            </span>
+        <div className="flex items-center justify-between pb-3 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#4edea3]">warehouse</span>
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900">إضافة مستودع جديد</h2>
-              <p className="text-[10px] text-slate-400 font-bold">سيظهر فوراً في قوائم التوريد وأوامر البيع</p>
+              <h3 className="text-sm font-bold text-white">
+                {language === 'ar' ? 'إضافة مستودع جديد' : 'New Warehouse Facility'}
+              </h3>
+              <p className="text-[11px] text-[#8f9194]">Storage facility and logistics hub</p>
             </div>
           </div>
           <button
             type="button"
             onClick={resetAndClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-            title="إغلاق"
+            className="p-1 rounded text-[#8f9194] hover:text-white hover:bg-[#282a2d]"
           >
-            <X className="w-4 h-4" />
+            <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 space-y-4">
-          <div className="space-y-1">
-            <label className="block text-[10px] font-bold text-slate-600">اسم المستودع *</label>
+        {error && (
+          <div className="p-2.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-3 font-sans">
+          <div>
+            <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+              {language === 'ar' ? 'اسم المستودع' : 'Warehouse Name'} *
+            </label>
             <input
+              type="text"
               required
-              maxLength={150}
-              autoFocus
-              placeholder="مثال: مستودع القاهرة الرئيسي"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g. Central Distribution Hub A"
+              className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs text-white focus:border-[#4edea3] outline-none"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-[10px] font-bold text-slate-600">الموقع *</label>
-            <div className="relative">
-              <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <input
-                required
-                maxLength={300}
-                placeholder="مثال: المنطقة الصناعية، القاهرة"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full pr-8 pl-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+              {language === 'ar' ? 'الموقع الجغرافي / العنوان' : 'Location / Address'} *
+            </label>
+            <input
+              type="text"
+              required
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. Zone 4, Port Logistics Park, Cairo"
+              className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-xs text-white focus:border-[#4edea3] outline-none"
+            />
           </div>
-
-          {error && (
-            <p className="text-xs font-bold text-rose-600 rounded-xl bg-rose-50 border border-rose-100 px-3 py-2">
-              {error}
-            </p>
-          )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
           <button
             type="button"
             onClick={resetAndClose}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+            className="px-3 py-1.5 rounded bg-[#282a2d] hover:bg-[#333538] text-[#8f9194] hover:text-white text-xs cursor-pointer"
           >
-            إلغاء
+            Cancel
           </button>
           <button
             type="submit"
             disabled={isSaving}
-            className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white hover:bg-indigo-700 transition disabled:opacity-60"
+            className="px-4 py-1.5 rounded bg-[#ffffff] hover:bg-[#e2e2e4] text-[#111316] font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
           >
-            <CheckCircle2 className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
-            {isSaving ? 'جارٍ الحفظ...' : 'حفظ المستودع'}
+            {isSaving ? 'Registering...' : 'Register Warehouse'}
           </button>
         </div>
       </form>

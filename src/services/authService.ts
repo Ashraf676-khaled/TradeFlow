@@ -14,6 +14,8 @@ export interface UserSession {
   email: string;
   name: string;
   token: string;
+  username?: string;
+  role?: string;
 }
 
 export class AuthService {

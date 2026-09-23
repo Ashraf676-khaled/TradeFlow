@@ -18,6 +18,16 @@ export type OrderStatus = 'مسودة' | 'مؤكد' | 'مكتمل' | 'ملغى';
 export type PaymentStatus = 'مدفوع' | 'غير مدفوع' | 'مدفوع جزئياً' | 'متأخر' | 'ملغاة';
 export type ProductStatus = 'متوفر' | 'مخزون منخفض' | 'نفد المخزون';
 export type InvoiceLayoutStyle = 'A4' | 'Thermal';
+export type NavigationPage = 
+  | 'overview' 
+  | 'terminal' 
+  | 'orders' 
+  | 'inventory' 
+  | 'invoices' 
+  | 'customers' 
+  | 'warehouses' 
+  | 'analytics' 
+  | 'settings';
 
 /**
  * Global tenant settings managed from the Settings page (/api/settings).
@@ -43,6 +53,7 @@ export interface Customer {
   country?: string;
   creditLimit?: number;
   outstandingBalance?: number;
+  currentBalance?: number;
   isActive?: boolean;
 }
 
@@ -128,6 +139,7 @@ export interface Invoice {
   status: PaymentStatus;
   paymentMethod?: string;
   lineItemsCount?: number;
+  items?: OrderItem[];
 }
 
 export interface SystemNotification {

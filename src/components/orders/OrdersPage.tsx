@@ -1,228 +1,336 @@
 import React, { useState } from 'react';
-import { 
-  ShoppingCart, 
-  Search, 
-  Plus, 
-  Eye, 
-  CheckCircle, 
-  Clock, 
-  AlertCircle, 
-  XCircle,
-  Check,
-  X,
-  Printer
-} from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
-import { OrderStatus, SalesOrder } from '../../types';
+import { SalesOrder, OrderStatus } from '../../types';
 import { InvoiceDetailModal } from '../invoices/InvoiceDetailModal';
-import { getApiErrorMessage } from '../../services/apiClient';
 
 interface OrdersPageProps {
   onOpenCreateOrder: () => void;
 }
 
 export const OrdersPage: React.FC<OrdersPageProps> = ({ onOpenCreateOrder }) => {
-  const { orders, currencySymbol, confirmSalesOrder, completeSalesOrder, cancelSalesOrder } = useTenant();
+  const {
+    orders,
+    warehouses,
+    formatCurrency,
+    confirmSalesOrder,
+    completeSalesOrder,
+    cancelSalesOrder,
+    language,
+    refreshAllData,
+  } = useTenant();
 
-  const [activeTab, setActiveTab] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+  const [activeStatusTab, setActiveStatusTab] = useState<string>('all');
+  const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [inspectingOrder, setInspectingOrder] = useState<SalesOrder | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<import('../../types').Invoice | null>(null);
-  const [invoiceError, setInvoiceError] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const filteredOrders = orders.filter(order => {
-    const matchesTab = activeTab === 'all' || order.status === activeTab;
-    const q = searchTerm.toLowerCase();
-    const ordNum = (order.orderNumber ?? '').toLowerCase();
-    const cust = (order.customerName ?? '').toLowerCase();
-    return matchesTab && (ordNum.includes(q) || cust.includes(q));
+    const matchesTab = activeStatusTab === 'all' || order.status === activeStatusTab;
+    const matchesWarehouse = selectedWarehouseFilter === 'all' || order.warehouseId === selectedWarehouseFilter;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      (order.orderNumber || '').toLowerCase().includes(q) ||
+      (order.customerName || '').toLowerCase().includes(q) ||
+      (order.warehouseName || '').toLowerCase().includes(q) ||
+      (order.items || []).some(item => (item.productName || '').toLowerCase().includes(q) || (item.sku || '').toLowerCase().includes(q));
+
+    return matchesTab && matchesWarehouse && matchesSearch;
   });
 
-  const getStatusBadge = (status: OrderStatus) => {
-    switch (status) {
-      case 'مكتمل':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-            <CheckCircle className="w-3 h-3" /> مكتمل
-          </span>
-        );
-      case 'مؤكد':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-            <Clock className="w-3 h-3" /> مؤكد
-          </span>
-        );
-      case 'مسودة':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-            <AlertCircle className="w-3 h-3" /> مسودة
-          </span>
-        );
-      case 'ملغى':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-            <XCircle className="w-3 h-3" /> ملغى
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-            {status}
-          </span>
-        );
+  const handleCopyId = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleConfirm = async (orderId: string) => {
+    try {
+      setActionError(null);
+      const generatedInvoice = await confirmSalesOrder(orderId);
+      setActionSuccess(`Order confirmed and invoice ${generatedInvoice?.invoiceNumber || ''} generated.`);
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: any) {
+      setActionError(err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to confirm order.');
     }
   };
 
+  const handleComplete = async (orderId: string) => {
+    try {
+      setActionError(null);
+      await completeSalesOrder(orderId);
+      setActionSuccess('Order completed and inventory archived.');
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: any) {
+      setActionError(err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to complete order.');
+    }
+  };
+
+  const handleCancel = async (orderId: string) => {
+    if (!window.confirm(language === 'ar' ? 'هل أنت متأكد من إلغاء هذا الأمر وإرجاع المخزون؟' : 'Are you sure you want to cancel this order and release reserved stock?')) {
+      return;
+    }
+    try {
+      setActionError(null);
+      await cancelSalesOrder(orderId);
+      setActionSuccess('Order cancelled.');
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: any) {
+      setActionError(err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to cancel order.');
+    }
+  };
+
+  const handleExportCSV = () => {
+    const csvContent = "data:text/csv;charset=utf-8," +
+      ["Order ID,Customer,Warehouse,Items,Total,Status,Date",
+        ...filteredOrders.map(o => `"${o.orderNumber}","${o.customerName || ''}","${o.warehouseName || ''}",${o.items?.length || 1},${o.totalAmount},"${o.status}","${o.issueDate || ''}"`)
+      ].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `tradeflow_orders_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrint = (order: SalesOrder) => {
+    window.print();
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      
-      {/* Header & Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-blue-700" /> إدارة أوامر المبيعات
-          </h1>
-          <p className="text-xs text-slate-500">
-            متابعة وتأكيد واعتماد أوامر المبيعات وإصدار الفواتير للعملاء.
+    <div className="space-y-4">
+      {/* Top Breadcrumb & Action Banner */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-white tracking-tight">
+              {language === 'ar' ? 'سجل العمليات والأوامر' : 'Transactions & Order Records'}
+            </h1>
+            <span className="px-2 py-0.5 rounded-full bg-[#282a2d] text-[#4edea3] text-[10px] font-mono font-bold">
+              LIVE LEDGER
+            </span>
+          </div>
+          <p className="text-xs text-[#8f9194]">
+            {language === 'ar'
+              ? 'سجل العمليات الموحد لجميع طلبات المبيعات والتسويات والمستودعات'
+              : 'Unified institutional ledger across multi-asset trading venues, clearing houses, and internal execution desks.'}
           </p>
         </div>
 
-        <button
-          onClick={onOpenCreateOrder}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition"
-        >
-          <Plus className="w-4 h-4" /> إنشاء أمر مبيعات جديد
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => refreshAllData()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1c1f] hover:bg-[#282a2d] text-[#e2e2e6] rounded text-xs transition-colors border border-white/5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm text-[#8f9194]">sync</span>
+            <span>{language === 'ar' ? 'تحديث السجل' : 'Reconcile'}</span>
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1c1f] hover:bg-[#282a2d] text-[#e2e2e6] rounded text-xs transition-colors border border-white/5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm text-[#8f9194]">file_download</span>
+            <span>{language === 'ar' ? 'تصدير CSV' : 'Export CSV'}</span>
+          </button>
+
+          <button
+            onClick={onOpenCreateOrder}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#ffffff] hover:bg-[#e2e2e4] text-[#111316] font-semibold rounded text-xs transition-all shadow-md cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm font-bold">add</span>
+            <span>{language === 'ar' ? 'أمر مبيعات جديد' : 'New Order'}</span>
+          </button>
+        </div>
       </div>
 
-      {invoiceError && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700">{invoiceError}</div>}
+      {/* Notifications */}
+      {actionSuccess && (
+        <div className="p-3 rounded bg-[#10b981]/15 border border-[#10b981]/30 text-[#4edea3] text-xs">
+          {actionSuccess}
+        </div>
+      )}
+      {actionError && (
+        <div className="p-3 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs">
+          {actionError}
+        </div>
+      )}
 
-      {/* Tabs & Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-        
-        {/* Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
-          {[
-            { id: 'all', label: 'جميع الأوامر', count: orders.length },
-            { id: 'مسودة', label: 'المسودات', count: orders.filter(o => o.status === 'مسودة').length },
-            { id: 'مؤكد', label: 'المؤكدة', count: orders.filter(o => o.status === 'مؤكد').length },
-            { id: 'مكتمل', label: 'المكتملة', count: orders.filter(o => o.status === 'مكتمل').length },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                activeTab === tab.id ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-600'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
+      {/* Filters & Search Toolbar */}
+      <div className="p-3 rounded bg-[#1a1c1f] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status Tabs */}
+          <div className="flex items-center bg-[#111316] p-0.5 rounded border border-white/5">
+            {[
+              { id: 'all', label: language === 'ar' ? 'الكل' : 'All' },
+              { id: 'مسودة', label: language === 'ar' ? 'مسودة' : 'Draft' },
+              { id: 'مؤكد', label: language === 'ar' ? 'مؤكد' : 'Confirmed' },
+              { id: 'مكتمل', label: language === 'ar' ? 'مكتمل' : 'Completed' },
+              { id: 'ملغى', label: language === 'ar' ? 'ملغى' : 'Cancelled' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveStatusTab(tab.id)}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  activeStatusTab === tab.id
+                    ? 'bg-[#282a2d] text-white shadow-xs'
+                    : 'text-[#8f9194] hover:text-[#e2e2e6]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Warehouse Selector */}
+          <select
+            value={selectedWarehouseFilter}
+            onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
+            className="px-2.5 py-1 bg-[#111316] border border-white/10 rounded text-xs text-[#e2e2e6] outline-none"
+          >
+            <option value="all">{language === 'ar' ? 'جميع المستودعات' : 'All Warehouses'}</option>
+            {warehouses.map(w => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Search */}
         <div className="relative w-full md:w-64">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[#8f9194]">
+            search
+          </span>
           <input
             type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="البحث برقم الأمر، العميل..."
-            className="w-full pr-9 pl-3 py-1.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={language === 'ar' ? 'بحث بالرقم أو العميل أو الصنف...' : 'Search Order ID, Client, Item...'}
+            className="w-full pl-8 pr-3 py-1.5 bg-[#111316] border border-white/10 rounded text-xs text-white placeholder-[#8f9194] outline-none focus:border-[#4edea3]"
           />
         </div>
-
       </div>
 
-      {/* Orders Table */}
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+      {/* Orders Ledger Table */}
+      <div className="rounded bg-[#1a1c1f] border border-white/5 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold bg-slate-50">
-                <th className="py-3 px-4">رقم الأمر</th>
-                <th className="py-3 px-4">اسم العميل</th>
-                <th className="py-3 px-4">تاريخ الإصدار</th>
-                <th className="py-3 px-4 text-left">الإجمالي</th>
-                <th className="py-3 px-4 text-center">حالة الأمر</th>
-                <th className="py-3 px-4 text-left">الإجراءات</th>
+              <tr className="bg-[#111316] text-[#8f9194] text-[11px] font-semibold uppercase tracking-wider border-b border-white/5">
+                <th className="py-2.5 px-3">Order ID</th>
+                <th className="py-2.5 px-3">Date / Time</th>
+                <th className="py-2.5 px-3">Counterparty</th>
+                <th className="py-2.5 px-3">Warehouse</th>
+                <th className="py-2.5 px-3 text-right">Items</th>
+                <th className="py-2.5 px-3 text-right">Net Settlement</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/5 text-xs font-mono">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
-                    لا توجد أوامر مبيعات مطابقة لمعايير البحث.
+                  <td colSpan={8} className="py-12 text-center text-xs text-[#8f9194] font-sans">
+                    {language === 'ar' ? 'لم يتم العثور على أي أوامر مبيعات تطابق البحث' : 'No order transactions found.'}
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-slate-50 transition">
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
-                      {order.orderNumber ?? '—'}
+                filteredOrders.map(order => (
+                  <tr
+                    key={order.id}
+                    onClick={() => setInspectingOrder(order)}
+                    className="hover:bg-[#282a2d]/50 transition-colors cursor-pointer group"
+                  >
+                    <td className="py-3 px-3 text-white font-bold flex items-center gap-1.5">
+                      <span>{order.orderNumber}</span>
+                      <button
+                        onClick={(e) => handleCopyId(order.orderNumber || order.id, e)}
+                        title="Copy ID"
+                        className="text-[#8f9194] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">
+                          {copiedId === (order.orderNumber || order.id) ? 'check' : 'content_copy'}
+                        </span>
+                      </button>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-800">
-                      {order.customerName || 'غير محدد'}
+
+                    <td className="py-3 px-3 text-[#8f9194] font-sans">
+                      {order.issueDate ? new Date(order.issueDate).toLocaleDateString() : 'Active'}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono">
-                      {order.issueDate ?? '—'}
+
+                    <td className="py-3 px-3 font-sans text-[#e2e2e6] font-medium">
+                      {order.customerName || 'Direct Counterparty'}
                     </td>
-                    <td className="py-3.5 px-4 text-left font-mono font-extrabold text-slate-900">
-                      {(order.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} {currencySymbol}
+
+                    <td className="py-3 px-3 font-sans text-[#8f9194]">
+                      {order.warehouseName || 'Central Hub'}
                     </td>
-                    <td className="py-3.5 px-4 text-center">
-                      {getStatusBadge(order.status)}
+
+                    <td className="py-3 px-3 text-right text-[#8f9194]">
+                      {order.items?.length || 1} units
                     </td>
-                    <td className="py-3.5 px-4 text-left">
-                      <div className="flex items-center justify-end gap-1.5">
+
+                    <td className="py-3 px-3 text-right font-bold text-white">
+                      {formatCurrency(Number(order.totalAmount) || 0)}
+                    </td>
+
+                    <td className="py-3 px-3 font-sans">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        order.status === 'مكتمل'
+                          ? 'bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30'
+                          : order.status === 'مؤكد'
+                          ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                          : order.status === 'ملغى'
+                          ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+
+                    <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setInspectingOrder(order)}
+                          title="Inspect Order"
+                          className="p-1 rounded bg-[#282a2d] hover:bg-[#333538] text-[#8f9194] hover:text-white transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">visibility</span>
+                        </button>
+
                         {order.status === 'مسودة' && (
                           <button
-                            onClick={async () => {
-                              try {
-                                const invoice = await confirmSalesOrder(order.id);
-                                setSelectedInvoice(invoice);
-                              } catch (error) {
-                                setInvoiceError(getApiErrorMessage(error, 'تعذر تأكيد الطلب وإصدار الفاتورة.'));
-                              }
-                            }}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100"
-                            title="تأكيد واعتماد الأمر"
+                            onClick={() => handleConfirm(order.id)}
+                            title="Confirm & Invoice"
+                            className="p-1 rounded bg-[#10b981]/20 hover:bg-[#10b981]/40 text-[#4edea3] transition-colors"
                           >
-                            تأكيد
+                            <span className="material-symbols-outlined text-[15px]">done</span>
                           </button>
                         )}
+
                         {order.status === 'مؤكد' && (
                           <button
-                            onClick={() => completeSalesOrder(order.id)}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100"
-                            title="إكمال وتسليم الأمر"
+                            onClick={() => handleComplete(order.id)}
+                            title="Complete Order"
+                            className="p-1 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-400 transition-colors"
                           >
-                            إكمال
+                            <span className="material-symbols-outlined text-[15px]">check_circle</span>
                           </button>
                         )}
+
                         {order.status !== 'ملغى' && order.status !== 'مكتمل' && (
                           <button
-                            onClick={() => cancelSalesOrder(order.id)}
-                            className="px-2 py-1 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100"
-                            title="إلغاء الأمر"
+                            onClick={() => handleCancel(order.id)}
+                            title="Cancel Order"
+                            className="p-1 rounded bg-rose-500/20 hover:bg-rose-500/40 text-rose-400 transition-colors"
                           >
-                            إلغاء
+                            <span className="material-symbols-outlined text-[15px]">close</span>
                           </button>
                         )}
-                        <button
-                          onClick={() => setSelectedOrder(order)}
-                          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-100 hover:text-blue-700"
-                          title="عرض التفاصيل"
-                        >
-                          <Eye className="h-3.5 w-3.5" /> عرض
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -233,80 +341,134 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onOpenCreateOrder }) => 
         </div>
       </div>
 
-      {/* Order View Modal */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="order-print-area w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 space-y-6 text-right font-sans" dir="rtl">
-            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+      {/* Inspect Order Slide-over / Modal */}
+      {inspectingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
+          <div className="bg-[#1a1c1f] border border-[#26292e] rounded shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400">
-                  تفاصيل أمر المبيعات
-                </span>
-                <h2 className="text-xl font-extrabold text-slate-900 font-mono">
-                  {selectedOrder.orderNumber ?? '—'}
-                </h2>
-                <p className="text-xs text-slate-500">
-                  تاريخ الإصدار: {selectedOrder.issueDate ?? '—'}
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-white font-mono">
+                    {inspectingOrder.orderNumber}
+                  </h3>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                    inspectingOrder.status === 'مكتمل'
+                      ? 'bg-[#10b981]/15 text-[#4edea3]'
+                      : 'bg-sky-500/15 text-sky-400'
+                  }`}>
+                    {inspectingOrder.status}
+                  </span>
+                </div>
+                <p className="text-xs text-[#8f9194]">
+                  Counterparty: <strong className="text-white">{inspectingOrder.customerName || 'Direct'}</strong> · Warehouse: {inspectingOrder.warehouseName || 'Central'}
                 </p>
-                <p className="text-xs font-bold text-slate-700">العميل: {selectedOrder.customerName || 'غير محدد'}</p>
-                <p className="text-xs text-slate-500">المستودع: {selectedOrder.warehouseName || 'المستودع الرئيسي'}</p>
               </div>
+
               <button
-                onClick={() => setSelectedOrder(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                onClick={() => setInspectingOrder(null)}
+                className="p-1 text-[#8f9194] hover:text-white"
               >
-                &times;
+                <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 flex justify-between items-center text-sm">
-              <span className="font-bold text-slate-800">المبلغ الإجمالي الكلي</span>
-              <span className="font-mono font-extrabold text-blue-700 text-lg">
-                {(selectedOrder.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} {currencySymbol}
-              </span>
+            {/* Item Breakdown */}
+            <div>
+              <h4 className="text-xs font-semibold text-[#8f9194] uppercase tracking-wider mb-2">
+                Order Line Items
+              </h4>
+              <div className="rounded bg-[#111316] border border-white/5 overflow-hidden">
+                <table className="w-full text-left font-mono text-xs">
+                  <thead>
+                    <tr className="text-[#8f9194] text-[10px] uppercase border-b border-white/5 bg-[#181a1e]">
+                      <th className="py-2 px-3">Item / SKU</th>
+                      <th className="py-2 px-3 text-right">Qty</th>
+                      <th className="py-2 px-3 text-right">Unit Price</th>
+                      <th className="py-2 px-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {inspectingOrder.items?.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="py-2 px-3">
+                          <div className="text-white font-sans">{item.productName}</div>
+                          <div className="text-[10px] text-[#8f9194]">{item.sku}</div>
+                        </td>
+                        <td className="py-2 px-3 text-right text-white">{item.quantity}</td>
+                        <td className="py-2 px-3 text-right text-[#8f9194]">
+                          {formatCurrency(Number(item.unitPrice) || 0)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-[#4edea3]">
+                          {formatCurrency(Number(item.totalPrice || ((item.quantity || 1) * (item.unitPrice || 0))))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2 text-right">الصنف</th>
-                  <th className="py-2 text-center">الكمية</th>
-                  <th className="py-2 text-left">سعر الوحدة</th>
-                  <th className="py-2 text-left">الإجمالي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(selectedOrder.items ?? []).map(item => (
-                  <tr key={item.id || item.productId} className="border-b border-slate-100">
-                    <td className="py-2">{item.productName || item.sku || item.productId || 'صنف'}</td>
-                    <td className="py-2 text-center">{item.quantity ?? 1}</td>
-                    <td className="py-2 text-left">{Number(item.unitPrice ?? 0).toFixed(2)} {currencySymbol}</td>
-                    <td className="py-2 text-left">{Number(item.totalPrice ?? ((item.quantity ?? 1) * (item.unitPrice ?? 0))).toFixed(2)} {currencySymbol}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* Totals Summary */}
+            <div className="p-3 bg-[#111316] rounded border border-white/5 space-y-1 font-mono text-xs">
+              <div className="flex justify-between text-[#8f9194]">
+                <span>Total Amount:</span>
+                <span className="text-white font-bold text-sm">
+                  {formatCurrency(Number(inspectingOrder.totalAmount) || 0)}
+                </span>
+              </div>
+            </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-white/5">
               <button
-                onClick={() => window.print()}
-                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                onClick={() => handlePrint(inspectingOrder)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded bg-[#282a2d] hover:bg-[#333538] text-white text-xs cursor-pointer"
               >
-                <Printer className="h-4 w-4" /> طباعة الفاتورة
+                <span className="material-symbols-outlined text-sm">print</span>
+                <span>Print Voucher</span>
               </button>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-              >
-                إغلاق النافذة
-              </button>
+
+              <div className="flex items-center gap-2">
+                {inspectingOrder.status === 'مسودة' && (
+                  <button
+                    onClick={() => {
+                      handleConfirm(inspectingOrder.id);
+                      setInspectingOrder(null);
+                    }}
+                    className="px-3 py-1.5 rounded bg-[#10b981] hover:bg-[#059669] text-white text-xs font-semibold cursor-pointer"
+                  >
+                    Confirm & Generate Invoice
+                  </button>
+                )}
+                {inspectingOrder.status === 'مؤكد' && (
+                  <button
+                    onClick={() => {
+                      handleComplete(inspectingOrder.id);
+                      setInspectingOrder(null);
+                    }}
+                    className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer"
+                  >
+                    Mark Fulfilled & Complete
+                  </button>
+                )}
+                <button
+                  onClick={() => setInspectingOrder(null)}
+                  className="px-3 py-1.5 rounded bg-[#282a2d] text-[#8f9194] hover:text-white text-xs cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <InvoiceDetailModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
-
+      {selectedInvoice && (
+        <InvoiceDetailModal
+          invoice={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
+        />
+      )}
     </div>
   );
 };

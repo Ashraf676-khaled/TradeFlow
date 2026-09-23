@@ -1,480 +1,629 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { 
-  Package, 
-  Search, 
-  Warehouse as WarehouseIcon, 
-  AlertTriangle, 
-  RefreshCw,
-  LayoutGrid,
-  List,
-  MapPin,
-  CheckCircle2,
-  XCircle
-  ,FileSpreadsheet
-  ,Plus
-} from 'lucide-react';
+import React, { useState, useMemo } from 'react';
 import { useTenant } from '../../context/TenantContext';
 import { Product } from '../../types';
 import { StockAdjustModal } from './StockAdjustModal';
+import { StockTransferModal } from './StockTransferModal';
 import { WarehouseModal } from './WarehouseModal';
-import { stockService } from '../../services/stockService';
-import { getApiErrorMessage } from '../../services/apiClient';
 import * as XLSX from 'xlsx';
 
 export const InventoryPage: React.FC = () => {
-  const { products, warehouses, currencySymbol, createProduct, settings } = useTenant();
+  const {
+    products,
+    warehouses,
+    formatCurrency,
+    createProduct,
+    updateProductPrice,
+    deleteProduct,
+    settings,
+    language,
+    refreshAllData,
+  } = useTenant();
 
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-  const [isAdjustOpen, setIsAdjustOpen] = useState(false);
+  const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeAdjustProduct, setActiveAdjustProduct] = useState<Product | null>(null);
-  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [stockProductIds, setStockProductIds] = useState<string[] | null>(null);
-  const [productForm, setProductForm] = useState({ sku: '', name: '', unitPrice: '', costPrice: '', minimumStock: '5', openingStock: '0', warehouseId: '' });
-  const [formError, setFormError] = useState('');
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-  const [isWarehouseFormOpen, setIsWarehouseFormOpen] = useState(false);
+  const [isAdjustOpen, setIsAdjustOpen] = useState(false);
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (selectedWarehouse === 'all') {
-      setStockProductIds(null);
+  // New product form state
+  const [newProduct, setNewProduct] = useState({
+    sku: '',
+    name: '',
+    description: '',
+    unitPrice: '',
+    costPrice: '',
+    minimumStock: '5',
+    openingStockQuantity: '10',
+    openingStockWarehouseId: '',
+  });
+  const [productError, setProductError] = useState('');
+  const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
+
+  // Quick edit price state
+  const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState<string>('');
+
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchesWarehouse = selectedWarehouseFilter === 'all' || p.warehouseId === selectedWarehouseFilter;
+      const matchesStatus =
+        selectedStatusFilter === 'all' ||
+        (selectedStatusFilter === 'low' && (p.status === 'مخزون منخفض' || (p.currentStock ?? 0) <= (p.minStockLevel || 5))) ||
+        (selectedStatusFilter === 'depleted' && (p.status === 'نفد المخزون' || (p.currentStock ?? 0) <= 0)) ||
+        (selectedStatusFilter === 'instock' && (p.currentStock ?? 0) > (p.minStockLevel || 5));
+
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.sku || '').toLowerCase().includes(q) ||
+        (p.category || '').toLowerCase().includes(q);
+
+      return matchesWarehouse && matchesStatus && matchesSearch;
+    });
+  }, [products, selectedWarehouseFilter, selectedStatusFilter, searchQuery]);
+
+  // Aggregate metrics
+  const totalValuation = products.reduce((acc, p) => acc + ((p.currentStock || 0) * (p.unitPrice || 0)), 0);
+  const totalCost = products.reduce((acc, p) => acc + ((p.currentStock || 0) * (p.costPrice || 0)), 0);
+  const totalUnits = products.reduce((acc, p) => acc + (p.currentStock || 0), 0);
+  const lowStockCount = products.filter(p => (p.currentStock ?? 0) <= (p.minStockLevel || 5)).length;
+
+  const handleExport = () => {
+    const data = filteredProducts.map(p => ({
+      SKU: p.sku,
+      Name: p.name,
+      Category: p.category || 'General',
+      Warehouse: warehouses.find(w => w.id === p.warehouseId)?.name || 'Central',
+      CostPrice: p.costPrice || 0,
+      SellingPrice: p.unitPrice || 0,
+      CurrentStock: p.currentStock || 0,
+      AvailableStock: p.availableStock || p.currentStock || 0,
+      Status: p.status,
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+    XLSX.writeFile(workbook, `tradeflow_inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleCreateProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProductError('');
+    if (!newProduct.sku.trim() || !newProduct.name.trim()) {
+      setProductError('SKU and Product Name are required.');
       return;
     }
-    stockService.getStockByWarehouse(selectedWarehouse, 1, 500)
-      .then(items => {
-        if (!cancelled) setStockProductIds(items.map((item: { productId: string }) => item.productId));
-      })
-      .catch(() => { if (!cancelled) setStockProductIds([]); });
-    return () => { cancelled = true; };
-  }, [selectedWarehouse]);
-
-  useEffect(() => {
-    if (selectedWarehouse === 'all' && warehouses.length > 0) {
-      const defaultWarehouse = warehouses.find(warehouse => warehouse.name?.includes('رئيسي')) || warehouses[0];
-      setSelectedWarehouse(defaultWarehouse.id);
+    const unitPrice = parseFloat(newProduct.unitPrice);
+    const costPrice = parseFloat(newProduct.costPrice);
+    if (isNaN(unitPrice) || isNaN(costPrice) || unitPrice < 0 || costPrice < 0) {
+      setProductError('Valid selling and cost prices are required.');
+      return;
     }
-  }, [warehouses, selectedWarehouse]);
 
-  const filteredProducts = products.filter(p => {
-    const matchesWh = selectedWarehouse === 'all' || p.warehouseId === selectedWarehouse || Boolean(stockProductIds?.includes(p.id));
-    const q = searchTerm.toLowerCase();
-    const name = (p.name ?? '').toLowerCase();
-    const sku = (p.sku ?? '').toLowerCase();
-    const category = (p.category ?? '').toLowerCase();
-    return matchesWh && (name.includes(q) || sku.includes(q) || category.includes(q));
-  });
-
-  const productGroups = useMemo(() => {
-    return filteredProducts.reduce<Record<string, Product[]>>((groups, product) => {
-      const sku = (product.sku || '').trim().toUpperCase();
-      const groupName = sku.includes('-') ? sku.split('-')[0] : (sku.charAt(0) || 'أصناف أخرى');
-      (groups[groupName] ||= []).push(product);
-      return groups;
-    }, {});
-  }, [filteredProducts]);
-
-  const sortedGroups = Object.entries(productGroups).sort(([first], [second]) => first.localeCompare(second));
-
-  const saveProduct = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setFormError('');
     try {
-      const unitPrice = Number(productForm.unitPrice);
-      const costPrice = Number(productForm.costPrice);
-      const minimumStock = Number(productForm.minimumStock);
-      const openingStock = Number(productForm.openingStock || 0);
-      if (!productForm.sku.trim() || !productForm.name.trim() || !Number.isFinite(unitPrice) || unitPrice <= 0 || !Number.isFinite(costPrice) || costPrice < 0 || !Number.isFinite(minimumStock) || minimumStock < 0 || !Number.isFinite(openingStock) || openingStock < 0) {
-        throw new Error('يرجى إدخال رمز الصنف والبيانات الرقمية بشكل صحيح.');
-      }
+      setIsSubmittingProduct(true);
       await createProduct({
-        sku: productForm.sku.trim(),
-        name: productForm.name.trim(),
+        sku: newProduct.sku.trim().toUpperCase(),
+        name: newProduct.name.trim(),
+        description: newProduct.description.trim() || undefined,
         unitPrice,
         costPrice,
-        minimumStock,
-        // Optional opening stock: booked into the selected warehouse (or the
-        // auto-created default warehouse when none is chosen) in the same save.
-        openingStockQuantity: openingStock,
-        openingStockWarehouseId: productForm.warehouseId || undefined,
+        minimumStock: parseInt(newProduct.minimumStock) || 5,
+        openingStockQuantity: parseInt(newProduct.openingStockQuantity) || 0,
+        openingStockWarehouseId: newProduct.openingStockWarehouseId || warehouses[0]?.id,
       });
-      setProductForm({ sku: '', name: '', unitPrice: '', costPrice: '', minimumStock: '5', openingStock: '0', warehouseId: '' });
-      setIsProductFormOpen(false);
-    } catch (error) {
-      setFormError(getApiErrorMessage(error, 'تعذر حفظ الصنف.'));
-    }
-  };
 
-  const importProducts = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    setIsImporting(true);
-    setFormError('');
-    try {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
-      for (const row of rows) {
-        const value = (keys: string[]) => keys.map(key => row[key]).find(item => item !== undefined && item !== '') as string | number | undefined;
-        await createProduct({
-          sku: String(value(['SKU', 'sku', 'رمز الصنف']) || '').trim(),
-          name: String(value(['Name', 'name', 'اسم الصنف']) || '').trim(),
-          unitPrice: Number(value(['SellingPrice', 'sellingPrice', 'سعر البيع']) || 0),
-          costPrice: Number(value(['Cost', 'cost', 'التكلفة']) || 0),
-          minimumStock: Number(value(['MinimumStock', 'minimumStock', 'حد إعادة الطلب']) || 5),
-        });
-      }
-    } catch (error) {
-      setFormError(getApiErrorMessage(error, 'تعذر استيراد ملف المنتجات.'));
+      setIsAddProductOpen(false);
+      setNewProduct({
+        sku: '',
+        name: '',
+        description: '',
+        unitPrice: '',
+        costPrice: '',
+        minimumStock: '5',
+        openingStockQuantity: '10',
+        openingStockWarehouseId: '',
+      });
+    } catch (err: any) {
+      setProductError(err.response?.data?.detail || err.response?.data?.title || err.message || 'Failed to create product.');
     } finally {
-      setIsImporting(false);
+      setIsSubmittingProduct(false);
     }
   };
 
-  const safetyThreshold = (p: Product) =>
-    (p.minStockLevel && p.minStockLevel > 0 ? p.minStockLevel : (settings.lowStockThreshold > 0 ? settings.lowStockThreshold : 5));
-
-  // Live safety-threshold state based on the AVAILABLE quantity.
-  const stockState = (p: Product): 'out' | 'low' | 'ok' => {
-    const available = p.availableStock ?? p.currentStock ?? 0;
-    if (available <= 0) return 'out';
-    return available <= safetyThreshold(p) ? 'low' : 'ok';
+  const handleSavePrice = async (productId: string) => {
+    const val = parseFloat(editPriceValue);
+    if (isNaN(val) || val <= 0) return;
+    try {
+      await updateProductPrice(productId, val);
+      setEditingPriceProductId(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const lowStockCount = filteredProducts.filter(p => stockState(p) !== 'ok').length;
-  const totalValuation = products.reduce((sum, p) => sum + ((p.currentStock ?? 0) * (p.unitPrice ?? 0)), 0);
-
-  const getStatusBadge = (status: Product['status']) => {
-    switch (status) {
-      case 'متوفر':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3" /> متوفر
-          </span>
-        );
-      case 'مخزون منخفض':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-            <AlertTriangle className="w-3 h-3 text-amber-600" /> مخزون منخفض
-          </span>
-        );
-      case 'نفد المخزون':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-            <XCircle className="w-3 h-3" /> نفد المخزون
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-            {status || 'متوفر'}
-          </span>
-        );
+  const handleDelete = async (productId: string) => {
+    if (!window.confirm(language === 'ar' ? 'هل أنت متأكد من حذف هذا المنتج؟' : 'Are you sure you want to delete this product?')) {
+      return;
+    }
+    try {
+      await deleteProduct(productId);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      
-      {/* Title Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4">
+      {/* Top Banner & High-Density Stat Cards */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <Package className="w-5 h-5 text-blue-700" /> إدارة المخزون والمستودعات
+          <h1 className="text-2xl font-semibold text-white tracking-tight">
+            {language === 'ar' ? 'مخزون الأصول والمنتجات' : 'Asset Inventory & Multi-Warehouse Stock'}
           </h1>
-          <p className="text-xs text-slate-500">
-            متابعة فورية لقيمة المخزون، الحدود الدنيا للأمان، وأماكن التخزين عبر الفروع.
+          <p className="text-xs text-[#8f9194] mt-0.5">
+            {language === 'ar'
+              ? 'مراقبة فورية للمخزون والتوريد وتوزيع البضائع عبر المراكز اللوجستية'
+              : 'Real-time multi-location inventory ledger, stock valuation, and supply chain controls'}
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => { setProductForm(current => ({ ...current, warehouseId: current.warehouseId || warehouses.find(w => w.name?.includes('رئيسي'))?.id || warehouses[0]?.id || '', minimumStock: current.minimumStock === '5' || current.minimumStock === '' ? String(settings.lowStockThreshold > 0 ? settings.lowStockThreshold : 5) : current.minimumStock })); setIsProductFormOpen(true); }} className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700"><Plus className="h-4 w-4" /> إضافة صنف</button>
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            type="button"
-            onClick={() => setIsWarehouseFormOpen(true)}
-            className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50"
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1c1f] hover:bg-[#282a2d] text-[#e2e2e6] rounded text-xs transition-colors border border-white/5 cursor-pointer"
           >
-            <WarehouseIcon className="h-4 w-4" /> إضافة مخزن
+            <span className="material-symbols-outlined text-sm text-[#8f9194]">file_download</span>
+            <span>{language === 'ar' ? 'تصدير إكسيل' : 'Export Excel'}</span>
           </button>
-          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><FileSpreadsheet className="h-4 w-4" /> {isImporting ? 'جارٍ الاستيراد' : 'استيراد المنتجات'}<input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importProducts} disabled={isImporting} /></label>
-          <button onClick={() => { setActiveAdjustProduct(null); setIsAdjustOpen(true); }} className="flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200"><RefreshCw className="h-4 w-4" /> توريد مخزني</button>
+
+          <button
+            onClick={() => {
+              setActiveAdjustProduct(null);
+              setIsTransferOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1c1f] hover:bg-[#282a2d] text-amber-400 rounded text-xs transition-colors border border-amber-500/20 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm">swap_horiz</span>
+            <span>{language === 'ar' ? 'تحويل مخزون' : 'Transfer Stock'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveAdjustProduct(null);
+              setIsAdjustOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1c1f] hover:bg-[#282a2d] text-[#4edea3] rounded text-xs transition-colors border border-[#10b981]/20 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm">add_box</span>
+            <span>{language === 'ar' ? 'توريد واستلام' : 'Receive Stock'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsAddProductOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#ffffff] hover:bg-[#e2e2e4] text-[#111316] font-semibold rounded text-xs transition-all shadow-md cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm font-bold">add</span>
+            <span>{language === 'ar' ? 'إضافة صنف جديد' : 'New Product'}</span>
+          </button>
         </div>
       </div>
-
-      {isProductFormOpen && <form onSubmit={saveProduct} className="space-y-3 rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between"><h2 className="font-bold">إضافة صنف جديد</h2><button type="button" onClick={() => setIsProductFormOpen(false)}>إغلاق</button></div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <div className="space-y-1"><label className="block text-[10px] font-bold text-slate-600">رمز الصنف (SKU)</label><input required placeholder="مثال: BR-001" value={productForm.sku} onChange={e => setProductForm({ ...productForm, sku: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs" /></div>
-          <div className="space-y-1"><label className="block text-[10px] font-bold text-slate-600">اسم الصنف</label><input required placeholder="مثال: شيبسى" value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs" /></div>
-          <div className="space-y-1"><label className="block text-[10px] font-bold text-slate-600">سعر البيع</label><input required min="0" type="number" placeholder="0.00" value={productForm.unitPrice} onChange={e => setProductForm({ ...productForm, unitPrice: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs" /></div>
-          <div className="space-y-1"><label className="block text-[10px] font-bold text-slate-600">التكلفة</label><input required min="0" type="number" placeholder="0.00" value={productForm.costPrice} onChange={e => setProductForm({ ...productForm, costPrice: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs" /></div>
-          <div className="space-y-1"><label className="block text-[10px] font-bold text-slate-600">حد إعادة الطلب (عدد الوحدات)</label><input required min="0" type="number" placeholder="مثال: 5" value={productForm.minimumStock} onChange={e => setProductForm({ ...productForm, minimumStock: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs" /></div>
-          <div className="space-y-1"><label className="block text-[10px] font-bold text-slate-600">الكمية الافتتاحية (اختياري)</label><input min="0" type="number" placeholder="0" value={productForm.openingStock} onChange={e => setProductForm({ ...productForm, openingStock: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs" /></div>
-          <div className="space-y-1"><label className="block text-[10px] font-bold text-slate-600">مستودع الرصيد الافتتاحي</label><select value={productForm.warehouseId} onChange={e => setProductForm({ ...productForm, warehouseId: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">{warehouses.length === 0 ? <option value="">سيتم استخدام المستودع الافتراضي تلقائيًا</option> : warehouses.map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
-        </div>
-        {formError && <p className="text-xs font-bold text-rose-600">{formError}</p>}
-        <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white">حفظ الصنف</button>
-      </form>}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-500 font-bold">إجمالي قيمة المخزون الحالية</p>
-            <h3 className="text-xl font-extrabold text-slate-900 mt-1">
-              {totalValuation.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
-            </h3>
+            <div className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+              {language === 'ar' ? 'إجمالي الأصناف المسجلة' : 'Registered Instruments'}
+            </div>
+            <div className="text-xl font-bold font-mono text-white mt-1">
+              {products.length} SKUs
+            </div>
           </div>
-          <div className="p-3 rounded-xl bg-blue-50 text-blue-700">
-            <Package className="w-5 h-5" />
-          </div>
+          <span className="material-symbols-outlined text-2xl text-[#8f9194]">token</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-500 font-bold">عدد المستودعات النشطة</p>
-            <h3 className="text-xl font-extrabold text-slate-900 mt-1">
-              {warehouses.length} <span className="text-xs font-normal text-slate-500">مخازن</span>
-            </h3>
+            <div className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+              {language === 'ar' ? 'تقييم المخزون الإجمالي' : 'Total Inventory Valuation'}
+            </div>
+            <div className="text-xl font-bold font-mono text-[#4edea3] mt-1">
+              {formatCurrency(totalValuation)}
+            </div>
           </div>
-          <div className="p-3 rounded-xl bg-indigo-50 text-indigo-700">
-            <WarehouseIcon className="w-5 h-5" />
-          </div>
+          <span className="material-symbols-outlined text-2xl text-[#4edea3]">payments</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-500 font-bold">تنبيهات نواقص المخزون</p>
-            <h3 className={`text-xl font-extrabold mt-1 ${lowStockCount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-              {lowStockCount} <span className="text-xs font-normal text-slate-500">أصناف تحتاج إعادة طلب</span>
-            </h3>
-            <p className={`text-[10px] mt-1 font-bold ${lowStockCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-              {lowStockCount > 0 ? '⚠ أصناف بلغت حد الأمان أو نفدت' : 'كل الأصناف أعلى من حد الأمان'}
-            </p>
+            <div className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+              {language === 'ar' ? 'إجمالي الوحدات الجاهزة' : 'Total Units In Hand'}
+            </div>
+            <div className="text-xl font-bold font-mono text-white mt-1">
+              {totalUnits} Units
+            </div>
           </div>
-          <div className={`p-3 rounded-xl ${lowStockCount > 0 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-            <AlertTriangle className="w-5 h-5" />
+          <span className="material-symbols-outlined text-2xl text-[#8f9194]">inventory_2</span>
+        </div>
+
+        <div className="p-3.5 rounded bg-[#1a1c1f] border border-white/5 flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider">
+              {language === 'ar' ? 'تنبيهات حد الطلب' : 'Low Stock Reorders'}
+            </div>
+            <div className={`text-xl font-bold font-mono mt-1 ${lowStockCount > 0 ? 'text-amber-400' : 'text-white'}`}>
+              {lowStockCount} items
+            </div>
           </div>
+          <span className={`material-symbols-outlined text-2xl ${lowStockCount > 0 ? 'text-amber-400' : 'text-[#8f9194]'}`}>
+            warning
+          </span>
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-        
-        {/* Warehouse Dropdown */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
-            <WarehouseIcon className="w-3.5 h-3.5" /> المستودع:
-          </label>
+      {/* Filter and Search Ribbon */}
+      <div className="p-3 rounded bg-[#1a1c1f] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status Tabs */}
+          <div className="flex items-center bg-[#111316] p-0.5 rounded border border-white/5">
+            {[
+              { id: 'all', label: language === 'ar' ? 'الكل' : 'All' },
+              { id: 'instock', label: language === 'ar' ? 'متوفر' : 'In Stock' },
+              { id: 'low', label: language === 'ar' ? 'منخفض' : 'Low Stock' },
+              { id: 'depleted', label: language === 'ar' ? 'نافد' : 'Depleted' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedStatusFilter(tab.id)}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  selectedStatusFilter === tab.id
+                    ? 'bg-[#282a2d] text-white shadow-xs'
+                    : 'text-[#8f9194] hover:text-[#e2e2e6]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Warehouse Selector */}
           <select
-            value={selectedWarehouse}
-            onChange={(e) => setSelectedWarehouse(e.target.value)}
-            className="px-3 py-1.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+            value={selectedWarehouseFilter}
+            onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
+            className="px-2.5 py-1 bg-[#111316] border border-white/10 rounded text-xs text-[#e2e2e6] outline-none"
           >
-            <option value="all">جميع المستودعات ({products.length} أصناف)</option>
+            <option value="all">{language === 'ar' ? 'جميع المستودعات' : 'All Warehouses'}</option>
             {warehouses.map(w => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
           </select>
         </div>
 
-        {/* Search & Layout Toggle */}
-        <div className="flex items-center gap-3">
-          <div className="relative w-full md:w-64">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="البحث باسم الصنف أو الفئة..."
-              className="w-full pr-9 pl-3 py-1.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="flex items-center p-1 rounded-xl bg-slate-100">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition ${
-                viewMode === 'table' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500'
-              }`}
-              title="عرض كجدول"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition ${
-                viewMode === 'grid' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500'
-              }`}
-              title="عرض كبطاقات"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-          </div>
+        {/* Search Input */}
+        <div className="relative w-full md:w-64">
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[#8f9194]">
+            search
+          </span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={language === 'ar' ? 'بحث بالاسم، الرمز SKU...' : 'Search Name, SKU, Category...'}
+            className="w-full pl-8 pr-3 py-1.5 bg-[#111316] border border-white/10 rounded text-xs text-white placeholder-[#8f9194] outline-none focus:border-[#4edea3]"
+          />
         </div>
-
       </div>
 
-      {/* Data Table View */}
-      {viewMode === 'table' ? (
-        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold bg-slate-50">
-                  <th className="py-3 px-4">رمز الصنف / اسم الصنف</th>
-                  <th className="py-3 px-4">الفئة</th>
-                  <th className="py-3 px-4">المستودع والموقع</th>
-                  <th className="py-3 px-4 text-center">مستوى المخزون الحالي</th>
-                  <th className="py-3 px-4 text-left">سعر الوحدة</th>
-                  <th className="py-3 px-4 text-center">الحالة</th>
-                  <th className="py-3 px-4 text-left">إجراء</th>
+      {/* Inventory Table */}
+      <div className="rounded bg-[#1a1c1f] border border-white/5 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-[#111316] text-[#8f9194] text-[11px] font-semibold uppercase tracking-wider border-b border-white/5">
+                <th className="py-2.5 px-3">SKU</th>
+                <th className="py-2.5 px-3">Instrument / Name</th>
+                <th className="py-2.5 px-3">Warehouse Hub</th>
+                <th className="py-2.5 px-3 text-right">Cost Price</th>
+                <th className="py-2.5 px-3 text-right">Selling Price</th>
+                <th className="py-2.5 px-3 text-right">Margin</th>
+                <th className="py-2.5 px-3 text-right">Stock On Hand</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 text-xs font-mono">
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-xs text-[#8f9194] font-sans">
+                    {language === 'ar' ? 'لا توجد منتجات مسجلة' : 'No inventory items found matching your filters.'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {sortedGroups.flatMap(([, groupProducts]) => groupProducts).map((prod) => {
-                  const currentStock = prod.currentStock ?? 0;
-                  const maxStock = prod.maxStockLevel || 100;
-                  const minStock = safetyThreshold(prod);
-                  const state = stockState(prod);
-                  const stockPct = Math.min(100, Math.round((currentStock / maxStock) * 100));
+              ) : (
+                filteredProducts.map(product => {
+                  const marginPct = product.unitPrice && product.unitPrice > 0
+                    ? (((product.unitPrice - (product.costPrice || 0)) / product.unitPrice) * 100).toFixed(1)
+                    : '0';
+
+                  const isLow = (product.currentStock ?? 0) <= (product.minStockLevel || 5);
+                  const isDepleted = (product.currentStock ?? 0) <= 0;
+
                   return (
-                    <tr key={prod.id} className={`transition hover:bg-slate-50 ${state === 'ok' ? '' : state === 'out' ? 'bg-rose-50/60' : 'bg-amber-50/60'}`}>
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
-                        <div>{prod.name ?? '—'}</div>
-                        <div className="text-[10px] font-mono text-blue-700">رمز: {prod.sku ?? '—'}</div>
+                    <tr key={product.id} className="hover:bg-[#282a2d]/50 transition-colors">
+                      <td className="py-3 px-3 font-bold text-white">
+                        <span className="px-1.5 py-0.5 rounded bg-[#282a2d] text-[#e2e2e6] border border-white/5">
+                          {product.sku}
+                        </span>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600">
-                        {prod.category ?? '—'}
+
+                      <td className="py-3 px-3 font-sans text-white">
+                        <div className="font-medium text-[#e2e2e6]">{product.name}</div>
+                        <div className="text-[10px] text-[#8f9194]">{product.category || 'General Commodity'}</div>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-slate-400" /> {prod.warehouseName ?? 'المستودع الرئيسي'}
-                        </div>
-                        <div className="text-[10px] font-mono text-slate-400">{prod.binLocation ?? '—'}</div>
+
+                      <td className="py-3 px-3 font-sans text-[#8f9194]">
+                        {warehouses.find(w => w.id === product.warehouseId)?.name || 'Central Distribution'}
                       </td>
-                      <td className="py-3.5 px-4">
-                        <div className="w-32 mx-auto space-y-1">
-                          <div className="flex justify-between text-[10px] font-mono">
-                            <span className="font-bold text-slate-900">
-                              {currentStock} {prod.unitOfMeasure ?? 'قطعة'}
-                            </span>
-                            <span className="text-slate-400">حد الأمان: {minStock}</span>
-                          </div>
-                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${
-                                state === 'out' ? 'bg-rose-500' : state === 'low' ? 'bg-amber-500' : 'bg-emerald-500'
-                              }`}
-                              style={{ width: `${stockPct}%` }}
+
+                      <td className="py-3 px-3 text-right text-[#8f9194]">
+                        {formatCurrency(product.costPrice || 0)}
+                      </td>
+
+                      <td className="py-3 px-3 text-right">
+                        {editingPriceProductId === product.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editPriceValue}
+                              onChange={(e) => setEditPriceValue(e.target.value)}
+                              className="w-20 px-1 py-0.5 bg-[#111316] border border-[#4edea3] rounded text-xs text-white text-right"
                             />
+                            <button
+                              onClick={() => handleSavePrice(product.id)}
+                              className="p-1 rounded bg-[#10b981] text-white"
+                            >
+                              <span className="material-symbols-outlined text-[13px]">check</span>
+                            </button>
+                            <button
+                              onClick={() => setEditingPriceProductId(null)}
+                              className="p-1 rounded bg-[#282a2d] text-[#8f9194]"
+                            >
+                              <span className="material-symbols-outlined text-[13px]">close</span>
+                            </button>
                           </div>
-                          {state !== 'ok' && (
-                            <p className={`flex items-center gap-1 text-[10px] font-bold ${state === 'out' ? 'text-rose-600' : 'text-amber-600'}`}>
-                              <AlertTriangle className="w-3 h-3" />
-                              {state === 'out' ? 'نفد المخزون — أعد الطلب الآن' : `تحت حد الأمان (المتاح ${currentStock} / الحد ${minStock})`}
-                            </p>
-                          )}
+                        ) : (
+                          <div
+                            onClick={() => {
+                              setEditingPriceProductId(product.id);
+                              setEditPriceValue(product.unitPrice.toString());
+                            }}
+                            className="font-bold text-white hover:text-[#4edea3] cursor-pointer flex items-center justify-end gap-1"
+                            title="Click to edit price"
+                          >
+                            <span>{formatCurrency(product.unitPrice || 0)}</span>
+                            <span className="material-symbols-outlined text-[11px] text-[#8f9194]">edit</span>
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-3 text-right text-[#4edea3]">
+                        {marginPct}%
+                      </td>
+
+                      <td className="py-3 px-3 text-right font-bold text-white">
+                        <span className={isDepleted ? 'text-rose-400' : isLow ? 'text-amber-400' : 'text-white'}>
+                          {product.currentStock ?? 0}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 font-sans">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          isDepleted
+                            ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            : isLow
+                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            : 'bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30'
+                        }`}>
+                          {isDepleted ? 'Depleted' : isLow ? 'Low Stock' : 'Active'}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1 font-sans">
+                          <button
+                            onClick={() => {
+                              setActiveAdjustProduct(product);
+                              setIsAdjustOpen(true);
+                            }}
+                            title="Receive Inbound Goods"
+                            className="p-1 rounded bg-[#282a2d] hover:bg-[#333538] text-[#4edea3] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">add_box</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setActiveAdjustProduct(product);
+                              setIsTransferOpen(true);
+                            }}
+                            title="Transfer Stock"
+                            className="p-1 rounded bg-[#282a2d] hover:bg-[#333538] text-amber-400 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">swap_horiz</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(product.id)}
+                            title="Delete Product"
+                            className="p-1 rounded bg-[#282a2d] hover:bg-rose-900/30 text-[#8f9194] hover:text-rose-400 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">delete</span>
+                          </button>
                         </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-left font-mono font-extrabold text-slate-900">
-                        {(prod.unitPrice ?? 0).toFixed(2)} {currencySymbol}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        {getStatusBadge(state === 'out' ? 'نفد المخزون' : state === 'low' ? 'مخزون منخفض' : 'متوفر')}
-                      </td>
-                      <td className="py-3.5 px-4 text-left">
-                        <button
-                          onClick={() => {
-                            setActiveAdjustProduct(prod);
-                            setIsAdjustOpen(true);
-                          }}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-blue-700 hover:bg-blue-50 border border-blue-200 transition"
-                        >
-                          تعديل
-                        </button>
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      ) : (
-        /* Grid View */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedGroups.map(([groupName, groupProducts]) => (
-            <section key={groupName} className="space-y-3">
-              <button type="button" onClick={() => setOpenGroups(current => ({ ...current, [groupName]: !(current[groupName] ?? true) }))} className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-right shadow-sm">
-                <span className="font-bold text-slate-800">مجموعة {groupName} <span className="text-xs font-normal text-slate-500">({groupProducts.length} أصناف)</span></span>
-                <span className="text-xs text-blue-700">{(openGroups[groupName] ?? true) ? 'إخفاء' : 'عرض'}</span>
-              </button>
-              {(openGroups[groupName] ?? true) && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {groupProducts.map((prod) => {
-            const state = stockState(prod);
-            const available = prod.availableStock ?? prod.currentStock ?? 0;
-            return (
-            <div key={prod.id} className={`p-5 rounded-2xl bg-white border shadow-sm space-y-4 transition ${state === 'ok' ? 'border-slate-200 hover:border-blue-400' : state === 'out' ? 'border-rose-300 bg-rose-50/40' : 'border-amber-300 bg-amber-50/40'}`}>
-              <div className="flex items-start justify-between">
+      </div>
+
+      {/* Add New Product Modal */}
+      {isAddProductOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="bg-[#1a1c1f] border border-[#26292e] rounded shadow-2xl w-full max-w-lg p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#4edea3]">add_circle</span>
                 <div>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700">
-                    رمز: {prod.sku ?? '—'}
-                  </span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-1.5">
-                    {prod.name ?? '—'}
+                  <h3 className="text-sm font-bold text-white">
+                    {language === 'ar' ? 'إضافة صنف جديد للنظام' : 'Register New Instrument / Product'}
                   </h3>
+                  <p className="text-[11px] text-[#8f9194]">Create SKU and initial warehouse allocation</p>
                 </div>
-                {getStatusBadge(state === 'out' ? 'نفد المخزون' : state === 'low' ? 'مخزون منخفض' : 'متوفر')}
+              </div>
+              <button
+                onClick={() => setIsAddProductOpen(false)}
+                className="p-1 rounded text-[#8f9194] hover:text-white hover:bg-[#282a2d]"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+
+            {productError && (
+              <div className="p-2.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs">
+                {productError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateProductSubmit} className="space-y-3 font-sans text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                    SKU Code *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newProduct.sku}
+                    onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })}
+                    placeholder="e.g. COMM-GOLD-01"
+                    className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-white font-mono focus:border-[#4edea3] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                    Product Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newProduct.name}
+                    onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                    placeholder="e.g. Premium Arabica Coffee"
+                    className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-white focus:border-[#4edea3] outline-none"
+                  />
+                </div>
               </div>
 
-              <p className="text-xs text-slate-500 line-clamp-2">
-                {prod.description ?? '—'}
-              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                    Cost Price *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={newProduct.costPrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, costPrice: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-white font-mono focus:border-[#4edea3] outline-none"
+                  />
+                </div>
 
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>المستودع</span>
-                  <span className="font-bold text-slate-900">{prod.warehouseName ?? 'المستودع الرئيسي'}</span>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                    Selling Price *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={newProduct.unitPrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, unitPrice: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-white font-mono focus:border-[#4edea3] outline-none"
+                  />
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>مكان التخزين</span>
-                  <span className="font-mono text-slate-700">{prod.binLocation ?? '—'}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>المخزون المتاح</span>
-                  <span className={`font-mono font-bold ${state === 'ok' ? 'text-emerald-700' : state === 'low' ? 'text-amber-700' : 'text-rose-700'}`}>{available} {prod.unitOfMeasure ?? 'قطعة'}</span>
-                </div>
-                {state !== 'ok' && (
-                  <p className={`flex items-center gap-1 text-[10px] font-bold ${state === 'out' ? 'text-rose-600' : 'text-amber-600'}`}>
-                    <AlertTriangle className="w-3 h-3" />
-                    {state === 'out' ? 'نفد المخزون — أعد الطلب الآن' : 'تحت حد الأمان'}
-                  </p>
-                )}
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <span className="font-mono font-extrabold text-slate-900 text-base">
-                  {(prod.unitPrice ?? 0).toFixed(2)} {currencySymbol}
-                </span>
-                <button
-                  onClick={() => {
-                    setActiveAdjustProduct(prod);
-                    setIsAdjustOpen(true);
-                  }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition shadow-xs"
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                    Opening Stock Quantity
+                  </label>
+                  <input
+                    type="number"
+                    value={newProduct.openingStockQuantity}
+                    onChange={(e) => setNewProduct({ ...newProduct, openingStockQuantity: e.target.value })}
+                    className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-white font-mono focus:border-[#4edea3] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                    Minimum Reorder Threshold
+                  </label>
+                  <input
+                    type="number"
+                    value={newProduct.minimumStock}
+                    onChange={(e) => setNewProduct({ ...newProduct, minimumStock: e.target.value })}
+                    className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-white font-mono focus:border-[#4edea3] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#8f9194] uppercase tracking-wider mb-1">
+                  Initial Warehouse Location
+                </label>
+                <select
+                  value={newProduct.openingStockWarehouseId}
+                  onChange={(e) => setNewProduct({ ...newProduct, openingStockWarehouseId: e.target.value })}
+                  className="w-full px-2.5 py-1.5 bg-[#111316] border border-[#26292e] rounded text-white focus:border-[#4edea3] outline-none"
                 >
-                  تعديل الكمية
+                  {warehouses.map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setIsAddProductOpen(false)}
+                  className="px-3 py-1.5 rounded bg-[#282a2d] hover:bg-[#333538] text-[#8f9194] hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingProduct}
+                  className="px-4 py-1.5 rounded bg-[#ffffff] hover:bg-[#e2e2e4] text-[#111316] font-bold uppercase tracking-wider shadow-md"
+                >
+                  {isSubmittingProduct ? 'Registering...' : 'Register Product'}
                 </button>
               </div>
-            </div>
-            );
-          })}
-              </div>}
-            </section>
-          ))}
+            </form>
+          </div>
         </div>
       )}
 
@@ -485,12 +634,18 @@ export const InventoryPage: React.FC = () => {
         initialProduct={activeAdjustProduct}
       />
 
-      {/* Add Warehouse Modal */}
-      <WarehouseModal
-        isOpen={isWarehouseFormOpen}
-        onClose={() => setIsWarehouseFormOpen(false)}
+      {/* Stock Transfer Modal */}
+      <StockTransferModal
+        isOpen={isTransferOpen}
+        onClose={() => setIsTransferOpen(false)}
+        initialProduct={activeAdjustProduct}
       />
 
+      {/* Warehouse Modal */}
+      <WarehouseModal
+        isOpen={isWarehouseModalOpen}
+        onClose={() => setIsWarehouseModalOpen(false)}
+      />
     </div>
   );
 };

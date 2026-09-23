@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, SalesOrder, Invoice, Warehouse, Customer, SystemSettings } from '../types';
+import { Product, SalesOrder, Invoice, Warehouse, Customer, SystemSettings, NavigationPage } from '../types';
 import { authService, UserSession } from '../services/authService';
 import { productService } from '../services/productService';
 import { salesOrderService, CreateSalesOrderRequest } from '../services/salesOrderService';
@@ -9,12 +9,26 @@ import { warehouseService } from '../services/warehouseService';
 import { stockService } from '../services/stockService';
 import { settingsService, DEFAULT_SYSTEM_SETTINGS } from '../services/settingsService';
 
-export type NavigationPage = 'overview' | 'orders' | 'inventory' | 'invoices' | 'customers' | 'settings';
+export type { NavigationPage };
+
+export type ActiveCurrency = 'USD' | 'SAR' | 'EUR' | 'GBP';
+export type ActiveTimeframe = 'Today' | '7D' | '30D' | 'YTD';
 
 interface TenantContextType {
   isAuthenticated: boolean;
   userSession: UserSession | null;
   currencySymbol: string;
+  activeCurrency: ActiveCurrency;
+  setActiveCurrency: (cur: ActiveCurrency) => void;
+  activeTimeframe: ActiveTimeframe;
+  setActiveTimeframe: (tf: ActiveTimeframe) => void;
+  language: 'en' | 'ar';
+  setLanguage: (lang: 'en' | 'ar') => void;
+  formatCurrency: (amount: number) => string;
+
+  openQuickOrderModal: boolean;
+  setOpenQuickOrderModal: (open: boolean) => void;
+
   loginSession: (session: UserSession) => void;
   logoutSession: () => void;
 
@@ -34,6 +48,8 @@ interface TenantContextType {
   updateSettings: (settings: SystemSettings) => Promise<void>;
   createSalesOrder: (order: CreateSalesOrderRequest) => Promise<Invoice>;
   createProduct: (prod: { sku: string; name: string; description?: string; unitPrice: number; costPrice: number; minimumStock?: number; openingStockQuantity?: number; openingStockWarehouseId?: string }) => Promise<void>;
+  updateProductPrice: (productId: string, newPrice: number) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
   createCustomer: (cust: { name: string; phone: string; email?: string; creditLimit?: number }) => Promise<void>;
   updateCustomer: (customerId: string, cust: { name: string; phone: string; email?: string; creditLimit?: number }) => Promise<void>;
   changeCustomerCreditLimit: (customerId: string, newLimit: number) => Promise<void>;
@@ -41,6 +57,7 @@ interface TenantContextType {
   deleteCustomer: (customerId: string) => Promise<void>;
   createWarehouse: (wh: { name: string; location: string }) => Promise<void>;
   receiveStock: (warehouseId: string, productId: string, quantity: number, unitCost: number) => Promise<void>;
+  transferStock: (sourceWarehouseId: string, targetWarehouseId: string, productId: string, quantity: number) => Promise<void>;
   registerPayment: (invoiceId: string, amount: number) => Promise<void>;
   createInvoiceFromOrder: (orderId: string, dueInDays?: number) => Promise<Invoice>;
   confirmSalesOrder: (orderId: string) => Promise<Invoice>;
@@ -54,6 +71,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(authService.isAuthenticated());
   const [userSession, setUserSession] = useState<UserSession | null>(authService.getCurrentSession());
   const [currentPage, setCurrentPage] = useState<NavigationPage>('overview');
+  const [activeCurrency, setActiveCurrency] = useState<ActiveCurrency>('USD');
+  const [activeTimeframe, setActiveTimeframe] = useState<ActiveTimeframe>('30D');
+  const [language, setLanguageState] = useState<'en' | 'ar'>('en');
+  const [openQuickOrderModal, setOpenQuickOrderModal] = useState<boolean>(false);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
@@ -64,7 +85,32 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const currencySymbol = 'جنيه';
+  const currencySymbolsMap: Record<ActiveCurrency, string> = {
+    USD: '$',
+    SAR: 'ر.س',
+    EUR: '€',
+    GBP: '£',
+  };
+
+  const currencySymbol = currencySymbolsMap[activeCurrency] || '$';
+
+  const formatCurrency = (amount: number): string => {
+    const formatted = Math.abs(amount).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const prefix = amount < 0 ? '-' : '';
+    if (activeCurrency === 'SAR') {
+      return `${prefix}${formatted} ${currencySymbol}`;
+    }
+    return `${prefix}${currencySymbol}${formatted}`;
+  };
+
+  const setLanguage = (lang: 'en' | 'ar') => {
+    setLanguageState(lang);
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+  };
 
   const loginSession = (session: UserSession) => {
     setIsAuthenticated(true);
@@ -221,6 +267,21 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await loadData();
   };
 
+  const updateProductPrice = async (productId: string, newPrice: number) => {
+    await productService.changeSellingPrice(productId, newPrice);
+    await loadData();
+  };
+
+  const deleteProduct = async (productId: string) => {
+    await productService.deleteProduct(productId);
+    await loadData();
+  };
+
+  const transferStock = async (sourceWarehouseId: string, targetWarehouseId: string, productId: string, quantity: number) => {
+    await stockService.transferStock({ sourceWarehouseId, targetWarehouseId, productId, quantity });
+    await loadData();
+  };
+
   const createCustomer = async (cust: { name: string; phone: string; email?: string; creditLimit?: number }) => {
     await customerService.createCustomer(cust);
     await loadData();
@@ -297,6 +358,15 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isAuthenticated,
       userSession,
       currencySymbol,
+      activeCurrency,
+      setActiveCurrency,
+      activeTimeframe,
+      setActiveTimeframe,
+      language,
+      setLanguage,
+      formatCurrency,
+      openQuickOrderModal,
+      setOpenQuickOrderModal,
       loginSession,
       logoutSession,
       currentPage,
@@ -313,6 +383,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       updateSettings,
       createSalesOrder,
       createProduct,
+      updateProductPrice,
+      deleteProduct,
       createCustomer,
       updateCustomer,
       changeCustomerCreditLimit,
@@ -320,6 +392,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       deleteCustomer,
       createWarehouse,
       receiveStock,
+      transferStock,
       registerPayment,
       createInvoiceFromOrder,
       confirmSalesOrder,
