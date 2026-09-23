@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Configurable API base URL, defaulting to the ASP.NET Core backend port
+// Configurable API base URL, defaulting to the production HTTPS URL on MonsterASP
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:57679';
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
