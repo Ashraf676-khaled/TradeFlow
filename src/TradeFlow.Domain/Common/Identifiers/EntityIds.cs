@@ -92,6 +92,16 @@ public readonly record struct UserId(Guid Value)
   public override string ToString() => Value.ToString();
 }
 
+public readonly record struct SettingId(Guid Value)
+{
+  public static SettingId New() => new(Guid.CreateVersion7());
+
+  public static Result<SettingId> Create(Guid value)
+      => value == Guid.Empty ? IdentifierErrors.Empty(nameof(SettingId)) : new SettingId(value);
+
+  public override string ToString() => Value.ToString();
+}
+
 public readonly record struct TenantId(Guid Value)
 {
   public static TenantId New() => new(Guid.CreateVersion7());

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TradeFlow.Application.Common.Interfaces;
+using TradeFlow.Infrastructure.BackgroundJobs;
 using TradeFlow.Infrastructure.Data;
 using TradeFlow.Infrastructure.Data.Interceptors;
 using TradeFlow.Infrastructure.Identity;
@@ -34,11 +35,8 @@ public static class DependencyInjection
       options.AddInterceptors(
           sp.GetRequiredService<AuditableEntityInterceptor>(),
           sp.GetRequiredService<DispatchDomainEventsInterceptor>());
-      options.AddInterceptors(
-          sp.GetRequiredService<AuditableEntityInterceptor>(),
-          sp.GetRequiredService<DispatchDomainEventsInterceptor>());
     });
-
+    services.AddBackgroundJobs(configuration);
     services.AddScoped<IApplicationDbContext>(sp =>
         sp.GetRequiredService<AppDbContext>());
 

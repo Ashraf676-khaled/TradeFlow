@@ -20,14 +20,21 @@ public class PaginatedList<T>
   public bool HasPreviousPage => PageNumber > 1;
   public bool HasNextPage => PageNumber < TotalPages;
 
+  /// <summary>
+  /// Builds a page of results. Callers MUST apply a deterministic ordering
+  /// (OrderBy/OrderByDescending) on <paramref name="source"/> before Skip/Take.
+  /// </summary>
   public static async Task<PaginatedList<T>> CreateAsync(
-      IQueryable<T> source, int pageNumber, int pageSize)
+      IQueryable<T> source, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
   {
-    var count = await source.CountAsync();
+    pageNumber = Math.Max(pageNumber, 1);
+    pageSize = Math.Clamp(pageSize, 1, 500);
+
+    var count = await source.CountAsync(cancellationToken);
     var items = await source
         .Skip((pageNumber - 1) * pageSize)
         .Take(pageSize)
-        .ToListAsync();
+        .ToListAsync(cancellationToken);
 
     return new PaginatedList<T>(items, count, pageNumber, pageSize);
   }

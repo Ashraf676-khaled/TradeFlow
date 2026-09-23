@@ -1,11 +1,6 @@
 ﻿using System.Text;
-using TradeFlow.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-
-namespace TradeFlow.Api.Configurations;
 
 public static class AuthenticationConfig
 {
@@ -13,8 +8,6 @@ public static class AuthenticationConfig
       this IServiceCollection services,
       IConfiguration configuration)
   {
-    var jwtSettings = configuration.GetSection("Jwt").Get<Jwt>()!;
-
     services.AddAuthentication(options =>
     {
       options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -22,6 +15,10 @@ public static class AuthenticationConfig
     })
     .AddJwtBearer(options =>
     {
+      // قراءة الإعدادات مباشرة من الـ configuration المتاحة وقت الـ Startup (واللي بتتحدث في الـ Tests)
+      var jwtSettings = configuration.GetSection("Jwt").Get<Jwt>()
+                        ?? throw new InvalidOperationException("Jwt settings are missing");
+
       options.TokenValidationParameters = new TokenValidationParameters
       {
         ValidateIssuer = true,

@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #f8fafc;
+    color: #0f172a;
+    direction: rtl;
+    text-align: right;
+  }
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Smooth badge animations */
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+.animate-subtle-pulse {
+  animation: subtle-pulse 2s infinite ease-in-out;
+}
+
+@media print {
+  @page {
+    margin: 8mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .invoice-print-area,
+  .invoice-print-area *,
+  .order-print-area,
+  .order-print-area * {
+    visibility: visible;
+  }
+
+  .invoice-print-area,
+  .order-print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    min-height: 100vh;
+    padding: 12mm;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  .invoice-print-area button,
+  .invoice-print-area form,
+  .order-print-area button {
+    visibility: hidden;
+  }
+
+  /* Thermal receipt mode (80mm roll) — activated by body.print-thermal */
+  body.print-thermal .invoice-print-area {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    padding: 4mm !important;
+    font-size: 11px !important;
+    line-height: 1.45;
+    color: #000;
+    background: #fff;
+  }
+
+  body.print-thermal .invoice-print-area h2 {
+    font-size: 15px !important;
+  }
+
+  /* Layout-only affordances that make no sense on a narrow receipt */
+  body.print-thermal .print-a4-only {
+    display: none !important;
+  }
+}

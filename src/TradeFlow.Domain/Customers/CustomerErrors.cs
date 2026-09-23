@@ -18,7 +18,8 @@ public static class CustomerErrors
 
   public static readonly Error AlreadyInactive = Error.Conflict(
       "Customer.AlreadyInactive", "Customer is already inactive.");
-
+  public static readonly Error PhoneAlreadyExists = Error.Conflict(
+    "Customer.PhoneAlreadyExists", "A customer with this phone number already exists.");
   public static readonly Error AlreadyActive = Error.Conflict(
       "Customer.AlreadyActive", "Customer is already active.");
 

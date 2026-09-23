@@ -22,4 +22,8 @@
     <ProjectReference Include="..\..\src\TradeFlow.Infrastructure\TradeFlow.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Sales\Invoices\Validator\" />
+  </ItemGroup>
+
 </Project>
