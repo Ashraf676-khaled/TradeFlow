@@ -13,5 +13,6 @@ public sealed class CreateProductCommandValidator : AbstractValidator<CreateProd
     RuleFor(x => x.Cost).GreaterThanOrEqualTo(0);
     RuleFor(x => x.MinimumStock).GreaterThanOrEqualTo(0);
     RuleFor(x => x.OpeningStockQuantity).GreaterThanOrEqualTo(0);
+    RuleFor(x => x.Category).NotEmpty().MaximumLength(60);
   }
 }

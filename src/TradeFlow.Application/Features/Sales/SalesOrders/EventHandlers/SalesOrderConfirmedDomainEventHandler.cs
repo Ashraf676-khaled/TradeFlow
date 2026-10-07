@@ -32,6 +32,14 @@ public sealed class SalesOrderConfirmedDomainEventHandler(IApplicationDbContext 
       if (reserveResult.IsError)
         throw new DbUpdateConcurrencyException(
             $"Insufficient stock to reserve for product {item.ProductId}: {reserveResult.TopError.Description}");
+
+      if (notification.ImmediateSale)
+      {
+        var deductionResult = stockItem.ConfirmDeduction(quantityResult.Value);
+        if (deductionResult.IsError)
+          throw new DbUpdateConcurrencyException(
+              $"Unable to deduct stock for immediate sale product {item.ProductId}: {deductionResult.TopError.Description}");
+      }
     }
 
     // No SaveChanges here: everything is persisted by the original SaveChanges

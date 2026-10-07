@@ -33,6 +33,19 @@ public class ProductTests
   }
 
   [Fact]
+  public void Create_WithCategory_ShouldPersistTheCategory()
+  {
+    var sku = Sku.Create("PRD-CAT-01").Value;
+    var price = Money.EGP(100).Value;
+    var cost = Money.EGP(60).Value;
+
+    var result = Product.Create(TestTenant, "iPhone 15", sku, price, cost, 5, "هواتف");
+
+    Assert.True(result.IsSuccess);
+    Assert.Equal("هواتف", result.Value.Category);
+  }
+
+  [Fact]
   public void Create_WithEmptyName_ShouldFail()
   {
     var sku = Sku.Create("PRD-0001").Value;

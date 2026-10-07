@@ -25,7 +25,7 @@ public sealed class GetPurchaseOrdersQueryHandler(IApplicationDbContext context,
       query = query.Where(o => o.Status == status);
     }
 
-    var projected = query.OrderByDescending(o => o.CreatedAt).ProjectTo<PurchaseOrderDto>(mapper.ConfigurationProvider);
+    var projected = query.OrderByDescending(o => o.CreatedAt.ToString()).ProjectTo<PurchaseOrderDto>(mapper.ConfigurationProvider);
     return await PaginatedList<PurchaseOrderDto>.CreateAsync(projected, request.PageNumber, request.PageSize, ct);
   }
 }

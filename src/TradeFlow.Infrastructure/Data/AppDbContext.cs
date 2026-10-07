@@ -5,6 +5,7 @@ using TradeFlow.Application.Common.Interfaces;
 using TradeFlow.Domain.Common.Events;
 using TradeFlow.Domain.Common.Identifiers;
 using TradeFlow.Domain.Customers;
+using TradeFlow.Domain.Expenses;
 using TradeFlow.Domain.Inventory;
 using TradeFlow.Domain.Purchasing;
 using TradeFlow.Domain.Sales;
@@ -30,6 +31,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserSe
   public DbSet<Supplier> Suppliers => Set<Supplier>();
   public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
   public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+  public DbSet<Expense> Expenses => Set<Expense>();
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
@@ -48,6 +50,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserSe
     modelBuilder.Entity<Supplier>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
     modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
     modelBuilder.Entity<SystemSetting>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
+    modelBuilder.Entity<Expense>().HasQueryFilter(e => e.TenantId == CurrentTenantId);
 
     base.OnModelCreating(modelBuilder);
   }

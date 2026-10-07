@@ -35,7 +35,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
       email.HasIndex(e => e.Value).IsUnique();
     });
 
-    builder.Property(u => u.PasswordHash).IsRequired();
+    builder.Property(u => u.PasswordHash).HasMaxLength(250).IsRequired();
 
     builder.Property(u => u.Role).HasConversion<string>().HasMaxLength(50);
 

@@ -4,6 +4,7 @@ namespace TradeFlow.Application.Common.Interfaces;
 
 using Microsoft.EntityFrameworkCore;
 using TradeFlow.Domain.Customers;
+using TradeFlow.Domain.Expenses;
 using TradeFlow.Domain.Inventory;
 using TradeFlow.Domain.Purchasing;
 using TradeFlow.Domain.Sales;
@@ -27,6 +28,7 @@ public interface IApplicationDbContext
   DbSet<Supplier> Suppliers { get; }
   DbSet<PurchaseOrder> PurchaseOrders { get; }
   DbSet<SystemSetting> SystemSettings { get; }
+  DbSet<Expense> Expenses { get; }
 
   Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
