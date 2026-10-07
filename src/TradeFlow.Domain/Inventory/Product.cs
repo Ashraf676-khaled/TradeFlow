@@ -10,6 +10,7 @@ public sealed class Product : AggregateRoot, IAuditableEntity
   public new ProductId Id { get; private set; }
   public TenantId TenantId { get; private set; }
   public string Name { get; private set; } = string.Empty;
+  public string Category { get; private set; } = "عام";
   public Sku Sku { get; private set; } = null!;
   public Money SellingPrice { get; private set; } = null!;
   public Money Cost { get; private set; } = null!;
@@ -28,6 +29,7 @@ public sealed class Product : AggregateRoot, IAuditableEntity
       ProductId id,
       TenantId tenantId,
       string name,
+      string category,
       Sku sku,
       Money sellingPrice,
       Money initialCost,
@@ -37,6 +39,7 @@ public sealed class Product : AggregateRoot, IAuditableEntity
     Id = id;
     TenantId = tenantId;
     Name = name;
+    Category = category;
     Sku = sku;
     SellingPrice = sellingPrice;
     Cost = initialCost;
@@ -50,13 +53,17 @@ public sealed class Product : AggregateRoot, IAuditableEntity
     Sku sku,
     Money sellingPrice,
     Money initialCost,
-    int minimumStock)
+    int minimumStock,
+    string category = "عام")
   {
     if (string.IsNullOrWhiteSpace(name))
       return ProductErrors.NameRequired;
 
     if (name.Length > 200)
       return ProductErrors.NameTooLong;
+
+    if (string.IsNullOrWhiteSpace(category) || category.Length > 60)
+      return ProductErrors.InvalidCategory;
 
     if (sellingPrice.Amount <= 0)
       return ProductErrors.InvalidSellingPrice;
@@ -67,7 +74,7 @@ public sealed class Product : AggregateRoot, IAuditableEntity
     if (initialCost.Amount >= sellingPrice.Amount)   
       return ProductErrors.CostExceedsSellingPrice;
 
-    return new Product(ProductId.New(), tenantId, name, sku, sellingPrice, initialCost, minimumStock);
+    return new Product(ProductId.New(), tenantId, name, category.Trim(), sku, sellingPrice, initialCost, minimumStock);
   }
 
   public Result<Success> ChangeSellingPrice(Money newPrice)

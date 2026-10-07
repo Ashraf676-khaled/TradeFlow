@@ -2,29 +2,29 @@
 
 #nullable disable
 
-namespace TradeFlow.Infrastructure.Migrations
+namespace TradeFlow.Infrastructure.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class AddStockItemConcurrency : Migration
+    public partial class AddProductCategory : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<byte[]>(
-                name: "RowVersion",
-                table: "StockItems",
-                type: "rowversion",
-                rowVersion: true,
+            migrationBuilder.AddColumn<string>(
+                name: "Category",
+                table: "Products",
+                type: "TEXT",
+                maxLength: 60,
                 nullable: false,
-                defaultValue: new byte[0]);
+                defaultValue: "عام");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "RowVersion",
-                table: "StockItems");
+                name: "Category",
+                table: "Products");
         }
     }
 }

@@ -22,7 +22,7 @@ public sealed class GetSalesOrdersQueryHandler(IApplicationDbContext context, IM
     if (!string.IsNullOrWhiteSpace(request.Status) && Enum.TryParse<OrderStatus>(request.Status, true, out var status))
       query = query.Where(o => o.Status == status);
 
-    var projected = query.OrderByDescending(o => o.OrderDate).ProjectTo<SalesOrderDto>(mapper.ConfigurationProvider);
+    var projected = query.OrderByDescending(o => o.OrderDate.ToString()).ProjectTo<SalesOrderDto>(mapper.ConfigurationProvider);
     return await PaginatedList<SalesOrderDto>.CreateAsync(projected, request.PageNumber, request.PageSize, ct);
   }
 }

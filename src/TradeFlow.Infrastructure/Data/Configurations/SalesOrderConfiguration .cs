@@ -20,6 +20,11 @@ public class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrder>
     builder.Property(s => s.SalesRepresentativeId).HasConversion(u => u.Value, v => new UserId(v));
     builder.Property(s => s.WarehouseId).HasConversion(w => w.Value, v => new WarehouseId(v));
     builder.Property(s => s.Status).HasConversion<string>().HasMaxLength(50);
+    builder.Property(s => s.OrderDate)
+        .HasConversion(
+            orderDate => orderDate.UtcDateTime,
+            storedAt => new DateTimeOffset(DateTime.SpecifyKind(storedAt, DateTimeKind.Utc)))
+        .IsRequired();
 
     builder.OwnsOne(s => s.OrderDiscount, d =>
         d.Property(x => x.Percentage).HasColumnName("OrderDiscountPercentage").HasColumnType("decimal(5,2)"));
@@ -96,6 +101,7 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
     builder.HasKey(p => p.Id);
 
     builder.Property(i => i.Id).ValueGeneratedNever();
+
     builder.OwnsOne(p => p.Amount, m =>
     {
       m.Property(x => x.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)");

@@ -121,7 +121,7 @@ public sealed class SalesOrder : AggregateRoot, IAuditableEntity
     return OrderDiscount.ApplyTo(subtotal);
   }
 
-  public Result<Success> Confirm()
+  public Result<Success> Confirm(bool immediateSale = false)
   {
     if (Status != OrderStatus.Draft)
       return SalesOrderErrors.NotInDraftStatus;
@@ -135,7 +135,8 @@ public sealed class SalesOrder : AggregateRoot, IAuditableEntity
      Id.Value,
      TenantId.Value,
      WarehouseId.Value,
-     BuildItemsSnapshot()));
+      BuildItemsSnapshot(),
+      immediateSale));
 
     return Result.Success;
   }

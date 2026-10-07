@@ -7,6 +7,7 @@ public sealed class ProductDto : IMapFrom<Product>
 {
   public Guid Id { get; set; }
   public string Name { get; set; } = string.Empty;
+  public string Category { get; set; } = "عام";
   public string Sku { get; set; } = string.Empty;
   public decimal SellingPrice { get; set; }
   public string SellingPriceCurrency { get; set; } = string.Empty;

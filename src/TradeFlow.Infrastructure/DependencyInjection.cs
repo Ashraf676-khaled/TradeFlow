@@ -31,7 +31,7 @@ public static class DependencyInjection
 
     services.AddDbContext<AppDbContext>((sp, options) =>
     {
-      options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"));
+      options.UseSqlite(configuration.GetConnectionString("DefaultConnection"));
       options.AddInterceptors(
           sp.GetRequiredService<AuditableEntityInterceptor>(),
           sp.GetRequiredService<DispatchDomainEventsInterceptor>());
