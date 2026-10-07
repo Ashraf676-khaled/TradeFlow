@@ -2,68 +2,96 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TradeFlow.Infrastructure.Data;
 
 #nullable disable
 
-namespace TradeFlow.Infrastructure.Migrations
+namespace TradeFlow.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260922180836_AddSystemSettings")]
-    partial class AddSystemSettings
+    [Migration("20261007043734_AddExpenseTracking")]
+    partial class AddExpenseTracking
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
-                .HasAnnotation("Relational:MaxIdentifierLength", 128);
-
-            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
             modelBuilder.Entity("TradeFlow.Domain.Customers.Customer", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.ToTable("Customers", (string)null);
                 });
 
+            modelBuilder.Entity("TradeFlow.Domain.Expenses.Expense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Classification")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("IncurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "IncurredAt");
+
+                    b.ToTable("Expenses", (string)null);
+                });
+
             modelBuilder.Entity("TradeFlow.Domain.Inventory.Product", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("MinimumStock")
-                        .HasColumnType("int");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -73,21 +101,21 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Inventory.StockItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("ProductId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
+                        .HasColumnType("BLOB");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("WarehouseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -100,23 +128,23 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Inventory.Warehouse", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -126,24 +154,24 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Purchasing.PurchaseOrder", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("SupplierId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("WarehouseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -153,13 +181,13 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Purchasing.PurchaseOrderItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("ProductId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid?>("PurchaseOrderId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -171,18 +199,18 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Purchasing.Supplier", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -192,27 +220,27 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Sales.Invoice", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("CustomerId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("DueDate")
-                        .HasColumnType("datetimeoffset");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("IssuedAt")
-                        .HasColumnType("datetimeoffset");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("SalesOrderId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -222,13 +250,13 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Sales.Payment", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid?>("InvoiceId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("PaidAt")
-                        .HasColumnType("datetimeoffset");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -240,27 +268,27 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Sales.SalesOrder", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("CustomerId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("OrderDate")
-                        .HasColumnType("datetimeoffset");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("SalesRepresentativeId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("WarehouseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -271,13 +299,13 @@ namespace TradeFlow.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("ProductId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid?>("SalesOrderId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -289,20 +317,20 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Settings.SystemSetting", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Value")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -315,15 +343,15 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Tenants.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -333,21 +361,21 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Users.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("ExpiresUtc")
-                        .HasColumnType("datetimeoffset");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsRevoked")
-                        .HasColumnType("bit");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Token")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -362,27 +390,28 @@ namespace TradeFlow.Infrastructure.Migrations
             modelBuilder.Entity("TradeFlow.Domain.Users.User", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -394,7 +423,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "CreditLimit", b1 =>
                         {
                             b1.Property<Guid>("CustomerId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -403,7 +432,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("CreditLimitCurrency");
 
                             b1.HasKey("CustomerId");
@@ -417,7 +446,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "CurrentBalance", b1 =>
                         {
                             b1.Property<Guid>("CustomerId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -426,7 +455,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("CurrentBalanceCurrency");
 
                             b1.HasKey("CustomerId");
@@ -440,12 +469,12 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Email", "Email", b1 =>
                         {
                             b1.Property<Guid>("CustomerId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(254)
-                                .HasColumnType("nvarchar(254)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Email");
 
                             b1.HasKey("CustomerId");
@@ -459,12 +488,12 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.PhoneNumber", "Phone", b1 =>
                         {
                             b1.Property<Guid>("CustomerId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Phone");
 
                             b1.HasKey("CustomerId");
@@ -487,17 +516,46 @@ namespace TradeFlow.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TradeFlow.Domain.Expenses.Expense", b =>
+                {
+                    b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "Amount", b1 =>
+                        {
+                            b1.Property<Guid>("ExpenseId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<decimal>("Amount")
+                                .HasColumnType("decimal(18,2)")
+                                .HasColumnName("Amount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("TEXT")
+                                .HasColumnName("Currency");
+
+                            b1.HasKey("ExpenseId");
+
+                            b1.ToTable("Expenses");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ExpenseId");
+                        });
+
+                    b.Navigation("Amount")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TradeFlow.Domain.Inventory.Product", b =>
                 {
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Sku", "Sku", b1 =>
                         {
                             b1.Property<Guid>("ProductId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Sku");
 
                             b1.HasKey("ProductId");
@@ -514,7 +572,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "Cost", b1 =>
                         {
                             b1.Property<Guid>("ProductId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -523,7 +581,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("CostCurrency");
 
                             b1.HasKey("ProductId");
@@ -537,7 +595,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "SellingPrice", b1 =>
                         {
                             b1.Property<Guid>("ProductId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -546,7 +604,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("SellingPriceCurrency");
 
                             b1.HasKey("ProductId");
@@ -572,10 +630,10 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Quantity", "AvailableQuantity", b1 =>
                         {
                             b1.Property<Guid>("StockItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Value")
-                                .HasColumnType("int")
+                                .HasColumnType("INTEGER")
                                 .HasColumnName("AvailableQuantity");
 
                             b1.HasKey("StockItemId");
@@ -589,10 +647,10 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Quantity", "ReservedQuantity", b1 =>
                         {
                             b1.Property<Guid>("StockItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Value")
-                                .HasColumnType("int")
+                                .HasColumnType("INTEGER")
                                 .HasColumnName("ReservedQuantity");
 
                             b1.HasKey("StockItemId");
@@ -615,12 +673,12 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.DocumentNumber", "OrderNumber", b1 =>
                         {
                             b1.Property<Guid>("PurchaseOrderId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("OrderNumber");
 
                             b1.HasKey("PurchaseOrderId");
@@ -648,10 +706,10 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Quantity", "OrderedQuantity", b1 =>
                         {
                             b1.Property<Guid>("PurchaseOrderItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Value")
-                                .HasColumnType("int")
+                                .HasColumnType("INTEGER")
                                 .HasColumnName("OrderedQuantity");
 
                             b1.HasKey("PurchaseOrderItemId");
@@ -665,10 +723,10 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Quantity", "ReceivedQuantity", b1 =>
                         {
                             b1.Property<Guid>("PurchaseOrderItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Value")
-                                .HasColumnType("int")
+                                .HasColumnType("INTEGER")
                                 .HasColumnName("ReceivedQuantity");
 
                             b1.HasKey("PurchaseOrderItemId");
@@ -682,7 +740,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "UnitCost", b1 =>
                         {
                             b1.Property<Guid>("PurchaseOrderItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -691,7 +749,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("UnitCostCurrency");
 
                             b1.HasKey("PurchaseOrderItemId");
@@ -717,12 +775,12 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.PhoneNumber", "Phone", b1 =>
                         {
                             b1.Property<Guid>("SupplierId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Phone");
 
                             b1.HasKey("SupplierId");
@@ -742,12 +800,12 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.DocumentNumber", "InvoiceNumber", b1 =>
                         {
                             b1.Property<Guid>("InvoiceId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("InvoiceNumber");
 
                             b1.HasKey("InvoiceId");
@@ -764,7 +822,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "TotalAmount", b1 =>
                         {
                             b1.Property<Guid>("InvoiceId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -773,7 +831,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("TotalAmountCurrency");
 
                             b1.HasKey("InvoiceId");
@@ -798,10 +856,10 @@ namespace TradeFlow.Infrastructure.Migrations
                         .HasForeignKey("InvoiceId")
                         .OnDelete(DeleteBehavior.Cascade);
 
-                    b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "Amount", b1 =>
+                    b.OwnsOne("TradeFlow.Domain.Sales.PaymentAmount", "Amount", b1 =>
                         {
                             b1.Property<Guid>("PaymentId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -810,7 +868,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Currency");
 
                             b1.HasKey("PaymentId");
@@ -830,7 +888,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Discount", "OrderDiscount", b1 =>
                         {
                             b1.Property<Guid>("SalesOrderId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Percentage")
                                 .HasColumnType("decimal(5,2)")
@@ -858,7 +916,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Discount", "ItemDiscount", b1 =>
                         {
                             b1.Property<Guid>("SalesOrderItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Percentage")
                                 .HasColumnType("decimal(5,2)")
@@ -875,10 +933,10 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Quantity", "Quantity", b1 =>
                         {
                             b1.Property<Guid>("SalesOrderItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Value")
-                                .HasColumnType("int")
+                                .HasColumnType("INTEGER")
                                 .HasColumnName("Quantity");
 
                             b1.HasKey("SalesOrderItemId");
@@ -892,7 +950,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Money", "UnitPrice", b1 =>
                         {
                             b1.Property<Guid>("SalesOrderItemId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Amount")
                                 .HasColumnType("decimal(18,2)")
@@ -901,7 +959,7 @@ namespace TradeFlow.Infrastructure.Migrations
                             b1.Property<string>("Currency")
                                 .IsRequired()
                                 .HasMaxLength(3)
-                                .HasColumnType("nvarchar(3)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("UnitPriceCurrency");
 
                             b1.HasKey("SalesOrderItemId");
@@ -936,12 +994,12 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.OwnsOne("TradeFlow.Domain.Common.ValueObjects.Email", "Email", b1 =>
                         {
                             b1.Property<Guid>("UserId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(256)
-                                .HasColumnType("nvarchar(256)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Email");
 
                             b1.HasKey("UserId");

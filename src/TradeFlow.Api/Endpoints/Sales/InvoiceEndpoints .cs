@@ -3,6 +3,7 @@
 using MediatR;
 using TradeFlow.Api.Extensions;
 using TradeFlow.Application.Sales.Invoices.Commands.CancelInvoice;
+using TradeFlow.Application.Sales.Invoices.Commands.CreateDirectInvoice;
 using TradeFlow.Application.Sales.Invoices.Commands.CreateInvoiceFromOrder;
 using TradeFlow.Application.Sales.Invoices.Commands.RegisterPayment;
 using TradeFlow.Application.Sales.Invoices.Queries.GetInvoiceById;
@@ -13,6 +14,12 @@ public sealed class InvoiceEndpoints : IEndpoint
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
     var group = app.MapGroup("/api/invoices").WithTags("Invoices").RequireAuthorization();
+
+    group.MapPost("/direct", async (CreateDirectInvoiceCommand command, ISender sender, CancellationToken ct) =>
+    {
+      var result = await sender.Send(command, ct);
+      return result.IsSuccess ? Results.Ok(new { id = result.Value }) : result.Errors.ToProblem();
+    });
 
     group.MapPost("/", async (CreateInvoiceFromOrderCommand command, ISender sender, CancellationToken ct) =>
     {

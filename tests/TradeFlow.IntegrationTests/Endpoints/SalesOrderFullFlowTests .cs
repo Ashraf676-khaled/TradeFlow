@@ -135,6 +135,70 @@ public class SalesOrderFullFlowTests : IntegrationTestBase
     Assert.Equal(HttpStatusCode.Conflict, confirmResponse.StatusCode);
   }
 
+  [Fact]
+  public async Task Reservation_ShouldReduceAvailableStockAndRestoreItWhenCancelled()
+  {
+    await RegisterAndLoginAsync();
+
+    var warehouseResponse = await Client.PostAsJsonAsync("/api/warehouses", new
+    {
+      name = $"WH-{Guid.NewGuid():N}"[..10],
+      location = "Cairo"
+    });
+    await EnsureSuccessWithDetailsAsync(warehouseResponse, "Create Warehouse");
+    var warehouseId = (await warehouseResponse.Content.ReadFromJsonAsync<IdResponse>())!.Id;
+
+    var productResponse = await Client.PostAsJsonAsync("/api/products", new
+    {
+      name = "Reserved Item",
+      sku = $"RS-{Guid.NewGuid():N}"[..10],
+      category = "مشروبات",
+      sellingPrice = 200m,
+      cost = 100m,
+      minimumStock = 5,
+      openingStockQuantity = 30,
+      openingStockWarehouseId = warehouseId
+    });
+    await EnsureSuccessWithDetailsAsync(productResponse, "Create Product With Opening Stock");
+    var productId = (await productResponse.Content.ReadFromJsonAsync<IdResponse>())!.Id;
+    var productDetails = await Client.GetFromJsonAsync<ProductCategoryResponse>($"/api/products/{productId}");
+    Assert.Equal("مشروبات", productDetails!.Category);
+
+    var customerResponse = await Client.PostAsJsonAsync("/api/customers", new
+    {
+      name = "Reservation Customer",
+      phone = $"010{new Random().Next(10000000, 99999999)}",
+      creditLimit = 10000m
+    });
+    await EnsureSuccessWithDetailsAsync(customerResponse, "Create Customer");
+    var customerId = (await customerResponse.Content.ReadFromJsonAsync<IdResponse>())!.Id;
+
+    var reservationResponse = await Client.PostAsJsonAsync("/api/sales-orders/reservations", new
+    {
+      customerId,
+      warehouseId,
+      items = new[] { new { productId, quantity = 8, unitPrice = 200m } }
+    });
+    await EnsureSuccessWithDetailsAsync(reservationResponse, "Create Reservation");
+    var orderId = (await reservationResponse.Content.ReadFromJsonAsync<IdResponse>())!.Id;
+
+    var reservedStockResponse = await Client.GetAsync($"/api/stock/{warehouseId}/{productId}");
+    await EnsureSuccessWithDetailsAsync(reservedStockResponse, "Get Reserved Stock");
+    var reservedStock = await reservedStockResponse.Content.ReadFromJsonAsync<StockItemResponseDto>();
+    Assert.Equal(22, reservedStock!.AvailableQuantity);
+    Assert.Equal(8, reservedStock.ReservedQuantity);
+
+    var cancelResponse = await Client.PostAsync($"/api/sales-orders/{orderId}/cancel", null);
+    await EnsureSuccessWithDetailsAsync(cancelResponse, "Cancel Reservation");
+
+    var restoredStockResponse = await Client.GetAsync($"/api/stock/{warehouseId}/{productId}");
+    await EnsureSuccessWithDetailsAsync(restoredStockResponse, "Get Restored Stock");
+    var restoredStock = await restoredStockResponse.Content.ReadFromJsonAsync<StockItemResponseDto>();
+    Assert.Equal(30, restoredStock!.AvailableQuantity);
+    Assert.Equal(0, restoredStock.ReservedQuantity);
+  }
+
   private sealed record IdResponse(Guid Id);
+  private sealed record ProductCategoryResponse(Guid Id, string Category);
   private sealed record StockItemResponseDto(Guid Id, Guid WarehouseId, Guid ProductId, int AvailableQuantity, int ReservedQuantity);
 }

@@ -17,6 +17,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
 
     builder.Property(p => p.TenantId).HasConversion(t => t.Value, v => new TenantId(v));
     builder.Property(p => p.Name).HasMaxLength(200).IsRequired();
+    builder.Property(p => p.Category).HasMaxLength(60).HasDefaultValue("عام").IsRequired();
 
     builder.OwnsOne(p => p.Sku, sku =>
     {

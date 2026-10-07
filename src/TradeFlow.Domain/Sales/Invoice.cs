@@ -69,7 +69,11 @@ public sealed class Invoice : AggregateRoot, IAuditableEntity
 
     foreach (var payment in _payments)
     {
-      var result = total.Add(payment.Amount);
+      var paymentAmount = payment.Amount.ToMoney();
+      if (paymentAmount.IsError)
+        return paymentAmount.Errors;
+
+      var result = total.Add(paymentAmount.Value);
       if (result.IsError)
         return result.Errors;
 

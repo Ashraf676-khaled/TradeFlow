@@ -10,16 +10,19 @@ public sealed class SalesOrderConfirmedDomainEvent : DomainEvent
   public Guid TenantId { get; }
   public Guid WarehouseId { get; }
   public IReadOnlyCollection<SalesOrderItemSnapshot> Items { get; }
+  public bool ImmediateSale { get; }
 
   public SalesOrderConfirmedDomainEvent(
       Guid salesOrderId,
       Guid tenantId,
       Guid warehouseId,
-      IReadOnlyCollection<SalesOrderItemSnapshot> items)
+      IReadOnlyCollection<SalesOrderItemSnapshot> items,
+      bool immediateSale = false)
   {
     SalesOrderId = salesOrderId;
     TenantId = tenantId;
     WarehouseId = warehouseId;
     Items = items;
+    ImmediateSale = immediateSale;
   }
 }

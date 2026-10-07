@@ -1,6 +1,7 @@
 ﻿namespace TradeFlow.Infrastructure.BackgroundJobs;
 
 using Hangfire;
+using Hangfire.MemoryStorage;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -13,21 +14,11 @@ public static class BackgroundJobsConfig
       this IServiceCollection services, IConfiguration configuration)
   {
     services.AddHangfire(config => config
-        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-        .UseSimpleAssemblyNameTypeSerializer()
-        .UseRecommendedSerializerSettings()
-        .UseSqlServerStorage(
-            configuration.GetConnectionString("DefaultConnection"),
-            new SqlServerStorageOptions
-            {
-              CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-              SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-              QueuePollInterval = TimeSpan.Zero,
-              UseRecommendedIsolationLevel = true,
-              DisableGlobalLocks = true
-            }));
+         .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+         .UseSimpleAssemblyNameTypeSerializer()
+         .UseRecommendedSerializerSettings()
+         .UseMemoryStorage()); // استخدام الذاكرة مباشرة من غير داتا بيس للـ Jobs
 
-    // Worker واحد كافي للمرحلة دي؛ زوّد WorkerCount لو الأحمال زادت مستقبلًا
     services.AddHangfireServer(options =>
     {
       options.WorkerCount = 1;

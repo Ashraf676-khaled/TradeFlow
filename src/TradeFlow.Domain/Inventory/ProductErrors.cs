@@ -18,6 +18,8 @@ public static class ProductErrors
 
   public static readonly Error InvalidMinimumStock = Error.Validation(
       "Product.InvalidMinimumStock", "Minimum stock cannot be negative.");
+  public static readonly Error InvalidCategory = Error.Validation(
+      "Product.InvalidCategory", "Product category is required and cannot exceed 60 characters.");
 
   public static readonly Error AlreadyInactive = Error.Conflict(
       "Product.AlreadyInactive", "Product is already inactive.");

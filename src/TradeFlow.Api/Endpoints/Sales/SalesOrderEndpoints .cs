@@ -5,6 +5,7 @@ using TradeFlow.Api.Extensions;
 using TradeFlow.Application.Sales.SalesOrders.Commands.CancelSalesOrder;
 using TradeFlow.Application.Sales.SalesOrders.Commands.CompleteSalesOrder;
 using TradeFlow.Application.Sales.SalesOrders.Commands.ConfirmSalesOrder;
+using TradeFlow.Application.Sales.SalesOrders.Commands.CreateReservation;
 using TradeFlow.Application.Sales.SalesOrders.Commands.CreateSalesOrder;
 using TradeFlow.Application.Sales.SalesOrders.Queries.GetSalesOrderById;
 using TradeFlow.Application.Sales.SalesOrders.Queries.GetSalesOrders;
@@ -14,6 +15,12 @@ public sealed class SalesOrderEndpoints : IEndpoint
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
     var group = app.MapGroup("/api/sales-orders").WithTags("Sales Orders").RequireAuthorization();
+
+    group.MapPost("/reservations", async (CreateReservationCommand command, ISender sender, CancellationToken ct) =>
+    {
+      var result = await sender.Send(command, ct);
+      return result.IsSuccess ? Results.Ok(new { id = result.Value }) : result.Errors.ToProblem();
+    });
 
     group.MapPost("/", async (CreateSalesOrderCommand command, ISender sender, CancellationToken ct) =>
     {

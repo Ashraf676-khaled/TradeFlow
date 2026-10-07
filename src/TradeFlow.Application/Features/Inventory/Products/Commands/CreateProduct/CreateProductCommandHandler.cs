@@ -58,7 +58,8 @@ public sealed class CreateProductCommandHandler(
         skuResult.Value,
         sellingPriceResult.Value,
         costResult.Value,
-        request.MinimumStock);
+        request.MinimumStock,
+        request.Category);
 
     if (productResult.IsError)
       return productResult.Errors;
