@@ -96,6 +96,21 @@ Every Value Object and Aggregate is developed test-first at the unit level — i
 - **MediatR-style Domain Event dispatching** via SaveChanges interceptor
 - **JWT** Authentication + Refresh Token rotation
 
+## Production API Configuration
+
+Set these values in the API host's environment/secrets; do not commit them or send them in chat:
+
+- `Jwt__Secret`: a randomly generated secret of at least 32 bytes. The API refuses to start if it is missing or too short.
+- `ConnectionStrings__DefaultConnection`: a SQLite connection string pointing to persistent, writable storage on the API host. This API currently uses SQLite; the checked-in database path is only a local fallback.
+
+The API allows browser requests from `https://trade-flow-dashboard-one.vercel.app`; localhost origins are allowed only in Development. Health endpoints are public and return status-only JSON:
+
+- `/health/live` checks that the API process is responding.
+- `/health/ready` checks the database, Hangfire storage, and the authentication, customers, expenses, inventory, sales, purchasing, and settings feature tables.
+- `/health` returns the same checks with per-check descriptions, durations, component details, a UTC timestamp, and Healthy/Degraded/Unhealthy totals.
+
+The readiness response does not include connection strings or exception details.
+
 ## 🚧 Roadmap
 
 - [ ] Complete Aggregate implementations (SalesOrder, Product, StockItem, Customer, PurchaseOrder)

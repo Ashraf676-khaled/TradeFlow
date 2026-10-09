@@ -1,4 +1,4 @@
-namespace TradeFlow.Domain.Expenses;
+﻿namespace TradeFlow.Domain.Expenses;
 
 using TradeFlow.Domain.Common.Abstractions;
 using TradeFlow.Domain.Common.Identifiers;
@@ -53,7 +53,7 @@ public sealed class Expense : AggregateRoot, IAuditableEntity
       return ExpenseErrors.InvalidDescription;
     if (string.IsNullOrWhiteSpace(category) || category.Length > 60)
       return ExpenseErrors.InvalidCategory;
-    if (classification is not ("ثابت" or "متغير"))
+    if (classification is not ("Fixed" or "Variable"))
       return ExpenseErrors.InvalidClassification;
     if (amount.Amount <= 0)
       return ExpenseErrors.InvalidAmount;
@@ -69,18 +69,4 @@ public sealed class Expense : AggregateRoot, IAuditableEntity
         amount,
         incurredAt);
   }
-}
-
-public static class ExpenseErrors
-{
-  public static readonly Error InvalidDescription = Error.Validation(
-      "Expense.InvalidDescription", "وصف المصروف مطلوب وبحد أقصى 200 حرف.");
-  public static readonly Error InvalidCategory = Error.Validation(
-      "Expense.InvalidCategory", "تصنيف المصروف مطلوب وبحد أقصى 60 حرفًا.");
-  public static readonly Error InvalidClassification = Error.Validation(
-      "Expense.InvalidClassification", "نوع المصروف يجب أن يكون ثابتًا أو متغيرًا.");
-  public static readonly Error InvalidAmount = Error.Validation(
-      "Expense.InvalidAmount", "قيمة المصروف يجب أن تكون أكبر من صفر.");
-  public static readonly Error InvalidDate = Error.Validation(
-      "Expense.InvalidDate", "تاريخ المصروف غير صالح.");
 }

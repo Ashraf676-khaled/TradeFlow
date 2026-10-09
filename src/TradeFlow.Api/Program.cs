@@ -1,9 +1,13 @@
-﻿using Hangfire;
+﻿using System.Text.Json;
+using Hangfire;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 using Serilog;
 using TradeFlow.Api;
 using TradeFlow.Api.Configurations;
 using TradeFlow.Api.Extensions;
+using TradeFlow.Api.Health;
 using TradeFlow.Api.Middlewares;
 using TradeFlow.Application;
 using TradeFlow.Infrastructure;
@@ -19,6 +23,11 @@ Log.Information("Starting up TradeFlow.Api");
 // Clean Architecture layers
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services
+  .AddHealthChecks()
+  .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"])
+  .AddCheck<HangfireStorageHealthCheck>("background-jobs", tags: ["ready"])
+  .AddTradeFlowFeatureHealthChecks();
 
 // Api layer (DependencyInjection.cs)
 builder.Services.AddApiServices(builder.Configuration);
@@ -27,25 +36,39 @@ builder.Services.AddCors(options =>
 {
   options.AddPolicy("AllowFrontend", policy =>
   {
-    policy.WithOrigins(
-            "http://localhost:5001",
-            "http://localhost:5172",
-            "http://localhost:5173",
-            "https://localhost:5173",
-            "http://localhost:5174",
-            "https://localhost:5174",
-            "http://localhost:5176",
-            "https://localhost:5176",
-            "http://localhost:57679",
-            "https://localhost:57679"
-          )
-          .SetIsOriginAllowedToAllowWildcardSubdomains()
-          .AllowAnyHeader()
-          .AllowAnyMethod();
+    policy.WithOrigins("https://trade-flow-dashboard-one.vercel.app")
+          .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+          .WithHeaders("Authorization", "Content-Type");
   });
 });
 
 var app = builder.Build();
+
+static Task WriteHealthResponse(HttpContext context, HealthReport report)
+{
+  context.Response.ContentType = "application/json";
+  return context.Response.WriteAsync(JsonSerializer.Serialize(new
+  {
+    status = report.Status.ToString(),
+    checkedAtUtc = DateTimeOffset.UtcNow,
+    totalDurationMs = Math.Round(report.TotalDuration.TotalMilliseconds, 2),
+    summary = new
+    {
+      total = report.Entries.Count,
+      healthy = report.Entries.Count(entry => entry.Value.Status == HealthStatus.Healthy),
+      degraded = report.Entries.Count(entry => entry.Value.Status == HealthStatus.Degraded),
+      unhealthy = report.Entries.Count(entry => entry.Value.Status == HealthStatus.Unhealthy)
+    },
+    checks = report.Entries.OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => new
+    {
+      name = entry.Key,
+      status = entry.Value.Status.ToString(),
+      description = entry.Value.Description,
+      durationMs = Math.Round(entry.Value.Duration.TotalMilliseconds, 2),
+      data = entry.Value.Data
+    })
+  }));
+}
 
 // 0. CORS لازم تكون في البداية خالص قبل أي Middleware تاني عشان الـ Preflight Requests (OPTIONS) تعدي
 app.UseCors("AllowFrontend");
@@ -81,6 +104,21 @@ if (!app.Environment.IsEnvironment("Testing"))
 // 3. Security & Routing (لازم بعد الـ CORS وقبل الـ Endpoints)
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+  Predicate = _ => false,
+  ResponseWriter = WriteHealthResponse
+}).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+  Predicate = check => check.Tags.Contains("ready"),
+  ResponseWriter = WriteHealthResponse
+}).AllowAnonymous();
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+  ResponseWriter = WriteHealthResponse
+}).AllowAnonymous();
 
 // 4. Endpoints Mapping (دي لازم تكون آخر حاجة قبل الـ Run)
 app.MapEndpoints();

@@ -268,6 +268,11 @@ paket-files/
 DeploymentSettings.props
 Packages.props
 
-#Local Log Files
+# Local Log Files
 log*.txt
 /sample/src/NimblePros.SampleToDo.Web/appsettings.Development.json
+
+# SQLite database files
+*.db
+*.db-wal
+*.db-shm
