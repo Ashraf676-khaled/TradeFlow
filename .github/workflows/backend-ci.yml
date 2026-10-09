@@ -33,3 +33,5 @@ jobs:
 
       - name: Test
         run: dotnet test TradeFlow.slnx --configuration Release --no-restore
+        env:
+          Jwt__Secret: ${{ secrets.JWT_SECRET }}

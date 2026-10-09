@@ -1,35 +1,49 @@
 ﻿namespace TradeFlow.Api.IntegrationTests.Common;
 
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using TradeFlow.Infrastructure.Data;
 using TradeFlow.Infrastructure.Data.Interceptors;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
+  private const string TestJwtSecret = "TestSecretKeyForIntegrationTestsOnly_MustBeLongEnough123!";
+  private const string TestJwtIssuer = "TradeFlow.Tests";
+  private const string TestJwtAudience = "TradeFlow.Tests";
+  private static readonly object EnvironmentLock = new();
   private readonly SqliteConnection _connection = new("DataSource=:memory:");
 
   protected override IHost CreateHost(IHostBuilder builder)
   {
-    // نحقن الإعدادات هنا، في أبكر مرحلة ممكنة قبل ما Program.cs يبدأ ينفذ حتى
-    builder.ConfigureAppConfiguration((context, config) =>
+    lock (EnvironmentLock)
     {
-      config.AddInMemoryCollection(new Dictionary<string, string?>
+      var originalSecret = Environment.GetEnvironmentVariable("Jwt__Secret");
+      var originalIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer");
+      var originalAudience = Environment.GetEnvironmentVariable("Jwt__Audience");
+      var originalExpiry = Environment.GetEnvironmentVariable("Jwt__ExpiryInMinutes");
+      try
       {
-        ["Jwt:Secret"] = "TestSecretKeyForIntegrationTestsOnly_MustBeLongEnough123!",
-        ["Jwt:Issuer"] = "TradeFlow.Tests",
-        ["Jwt:Audience"] = "TradeFlow.Tests",
-        ["Jwt:ExpiryInMinutes"] = "15",
-        ["ConnectionStrings:DefaultConnection"] = "DataSource=:memory:"
-      });
-    });
-
-    return base.CreateHost(builder);
+        Environment.SetEnvironmentVariable("Jwt__Secret", TestJwtSecret);
+        Environment.SetEnvironmentVariable("Jwt__Issuer", TestJwtIssuer);
+        Environment.SetEnvironmentVariable("Jwt__Audience", TestJwtAudience);
+        Environment.SetEnvironmentVariable("Jwt__ExpiryInMinutes", "15");
+        return base.CreateHost(builder);
+      }
+      finally
+      {
+        Environment.SetEnvironmentVariable("Jwt__Secret", originalSecret);
+        Environment.SetEnvironmentVariable("Jwt__Issuer", originalIssuer);
+        Environment.SetEnvironmentVariable("Jwt__Audience", originalAudience);
+        Environment.SetEnvironmentVariable("Jwt__ExpiryInMinutes", originalExpiry);
+      }
+    }
   }
 
   protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -38,6 +52,21 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     builder.ConfigureServices(services =>
     {
+      services.PostConfigure<Jwt>(options =>
+      {
+        options.Secret = TestJwtSecret;
+        options.Issuer = TestJwtIssuer;
+        options.Audience = TestJwtAudience;
+        options.ExpiryInMinutes = 15;
+      });
+      services.PostConfigure<JwtBearerOptions>(options =>
+      {
+        options.TokenValidationParameters.ValidIssuer = TestJwtIssuer;
+        options.TokenValidationParameters.ValidAudience = TestJwtAudience;
+        options.TokenValidationParameters.IssuerSigningKey =
+            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtSecret));
+      });
+
       var descriptorsToRemove = services
           .Where(d =>
               d.ServiceType == typeof(DbContextOptions<AppDbContext>) ||

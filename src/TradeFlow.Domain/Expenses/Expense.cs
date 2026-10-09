@@ -53,7 +53,7 @@ public sealed class Expense : AggregateRoot, IAuditableEntity
       return ExpenseErrors.InvalidDescription;
     if (string.IsNullOrWhiteSpace(category) || category.Length > 60)
       return ExpenseErrors.InvalidCategory;
-    if (classification is not ("Fixed" or "Variable"))
+    if (classification is not ("ثابت" or "متغير"))
       return ExpenseErrors.InvalidClassification;
     if (amount.Amount <= 0)
       return ExpenseErrors.InvalidAmount;
