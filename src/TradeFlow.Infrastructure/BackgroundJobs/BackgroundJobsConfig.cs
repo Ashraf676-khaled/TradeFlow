@@ -1,6 +1,7 @@
 ﻿namespace TradeFlow.Infrastructure.BackgroundJobs;
 
 using Hangfire;
+using Hangfire.Common;
 using Hangfire.MemoryStorage;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Builder;
@@ -35,19 +36,28 @@ public static class BackgroundJobsConfig
   /// </summary>
   public static void RegisterRecurringJobs(this IApplicationBuilder app)
   {
-    RecurringJob.AddOrUpdate<IHangfireJobService>(
+    var recurringJobManager = app.ApplicationServices.GetRequiredService<IRecurringJobManager>();
+    var options = new RecurringJobOptions();
+
+    recurringJobManager.AddOrUpdate(
         "cleanup-expired-refresh-tokens",
-        job => job.CleanupExpiredRefreshTokensAsync(CancellationToken.None),
-        Cron.Daily(3)); // كل يوم الساعة 3 صباحًا
+        Job.FromExpression<IHangfireJobService>(
+            job => job.CleanupExpiredRefreshTokensAsync(CancellationToken.None)),
+        Cron.Daily(3),
+        options); // كل يوم الساعة 3 صباحًا
 
-    RecurringJob.AddOrUpdate<IHangfireJobService>(
+    recurringJobManager.AddOrUpdate(
         "check-low-stock-levels",
-        job => job.CheckLowStockLevelsAsync(CancellationToken.None),
-        Cron.Hourly());
+        Job.FromExpression<IHangfireJobService>(
+            job => job.CheckLowStockLevelsAsync(CancellationToken.None)),
+        Cron.Hourly(),
+        options);
 
-    RecurringJob.AddOrUpdate<IHangfireJobService>(
+    recurringJobManager.AddOrUpdate(
         "check-overdue-invoices",
-        job => job.CheckOverdueInvoicesAsync(CancellationToken.None),
-        Cron.Daily(2)); // كل يوم الساعة 2 صباحًا
+        Job.FromExpression<IHangfireJobService>(
+            job => job.CheckOverdueInvoicesAsync(CancellationToken.None)),
+        Cron.Daily(2),
+        options); // كل يوم الساعة 2 صباحًا
   }
 }
