@@ -18,7 +18,18 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
   private const string TestJwtIssuer = "TradeFlow.Tests";
   private const string TestJwtAudience = "TradeFlow.Tests";
   private static readonly object EnvironmentLock = new();
-  private readonly SqliteConnection _connection = new("DataSource=:memory:");
+  private readonly string _connectionString = new SqliteConnectionStringBuilder
+  {
+    DataSource = $"TradeFlowTests_{Guid.NewGuid():N}",
+    Mode = SqliteOpenMode.Memory,
+    Cache = SqliteCacheMode.Shared
+  }.ToString();
+  private readonly SqliteConnection _connection;
+
+  public CustomWebApplicationFactory()
+  {
+    _connection = new SqliteConnection(_connectionString);
+  }
 
   protected override IHost CreateHost(IHostBuilder builder)
   {
@@ -97,11 +108,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
       services.AddDbContext<AppDbContext>((sp, options) =>
       {
         var interceptor = sp.GetRequiredService<DispatchDomainEventsInterceptor>();
-        options.UseSqlite(_connection)
+        options.UseSqlite(_connectionString)
                .AddInterceptors(interceptor);
       });
 
-      using var scope = services.BuildServiceProvider().CreateScope();
+      using var provider = services.BuildServiceProvider();
+      using var scope = provider.CreateScope();
       var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
       context.Database.EnsureCreated();
     });
