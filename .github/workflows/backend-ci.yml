@@ -19,6 +19,21 @@ jobs:
   test:
     name: Build and test
     runs-on: ubuntu-latest
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        environment:
+          ACCEPT_EULA: "Y"
+          SA_PASSWORD: "YourStrongPassword123!"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrongPassword123!' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -35,3 +50,4 @@ jobs:
         run: dotnet test TradeFlow.slnx --configuration Release --no-restore
         env:
           Jwt__Secret: ${{ secrets.JWT_SECRET }}
+          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=TradeFlow_Test;User Id=sa;Password=YourStrongPassword123!;Encrypt=True;TrustServerCertificate=True;"
