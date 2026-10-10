@@ -1,4 +1,4 @@
-name: Backend CI
+name: Backend CI/CD
 
 on:
   push:
@@ -46,8 +46,53 @@ jobs:
       - name: Restore
         run: dotnet restore TradeFlow.slnx
 
+      - name: Create Test Database
+        run: |
+          /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'YourStrongPassword123!' -Q "CREATE DATABASE TradeFlow_Test;"
+
       - name: Test
         run: dotnet test TradeFlow.slnx --configuration Release --no-restore
         env:
           Jwt__Secret: ${{ secrets.JWT_SECRET }}
           ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=TradeFlow_Test;User Id=sa;Password=YourStrongPassword123!;Encrypt=True;TrustServerCertificate=True;"
+
+  deploy:
+    name: Publish and Deploy API to hosting
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/devolop')
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore API
+        run: dotnet restore src/TradeFlow.Api/TradeFlow.Api.csproj
+
+      - name: Publish API
+        run: dotnet publish src/TradeFlow.Api/TradeFlow.Api.csproj --configuration Release --no-restore --output ./publish
+
+      - name: Take app offline
+        run: |
+          echo "App is being updated, please wait..." > app_offline.htm
+          curl -T app_offline.htm "ftp://${{ secrets.FTP_SERVER }}/wwwroot/app_offline.htm" --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+          echo "Waiting for IIS to release file locks..."
+          sleep 10
+
+      - name: Sync FTP Files
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./publish/
+          server-dir: ./wwwroot/
+
+      - name: Bring app back online
+        run: |
+          curl -Q "-DELE app_offline.htm" "ftp://${{ secrets.FTP_SERVER }}/wwwroot/" --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
