@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TradeFlow.Application\TradeFlow.Application.csproj" />
+    <ProjectReference Include="..\TradeFlow.Infrastructure.SqlServerMigrations\TradeFlow.Infrastructure.SqlServerMigrations.csproj" />
     <ProjectReference Include="..\TradeFlow.Infrastructure\TradeFlow.Infrastructure.csproj" />
   </ItemGroup>
 

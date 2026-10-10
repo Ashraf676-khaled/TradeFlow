@@ -18,6 +18,7 @@
     <Project Path="src/TradeFlow.Application/TradeFlow.Application.csproj" />
     <Project Path="src/TradeFlow.Domain/TradeFlow.Domain.csproj" />
     <Project Path="src/TradeFlow.Infrastructure/TradeFlow.Infrastructure.csproj" />
+    <Project Path="src/TradeFlow.Infrastructure.SqlServerMigrations/TradeFlow.Infrastructure.SqlServerMigrations.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/TradeFlow.FunctionalTests/TradeFlow.Application.UnitTests.csproj" />

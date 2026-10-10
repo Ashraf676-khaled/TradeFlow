@@ -1,5 +1,8 @@
 ﻿using System.Text.Json;
 using Hangfire;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
@@ -12,6 +15,7 @@ using TradeFlow.Api.Middlewares;
 using TradeFlow.Application;
 using TradeFlow.Infrastructure;
 using TradeFlow.Infrastructure.BackgroundJobs;
+using TradeFlow.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +47,25 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup") &&
+    !app.Environment.IsEnvironment("Testing"))
+{
+  await using var scope = app.Services.CreateAsyncScope();
+  var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+  try
+  {
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await dbContext.Database.MigrateAsync();
+    logger.LogInformation("Database migrations applied successfully.");
+  }
+  catch (Exception exception)
+  {
+    logger.LogCritical(exception, "Failed to apply database migrations during startup.");
+    throw;
+  }
+}
 
 static Task WriteHealthResponse(HttpContext context, HealthReport report)
 {

@@ -31,7 +31,27 @@ public static class DependencyInjection
 
     services.AddDbContext<AppDbContext>((sp, options) =>
     {
-      options.UseSqlite(configuration.GetConnectionString("DefaultConnection"));
+      var connectionString = configuration.GetConnectionString("DefaultConnection")
+          ?? throw new InvalidOperationException(
+              "ConnectionStrings:DefaultConnection must be configured.");
+      var databaseProvider = configuration["Database:Provider"] ?? "Sqlite";
+
+      if (string.Equals(databaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+      {
+        options.UseSqlServer(
+            connectionString,
+            sqlServer => sqlServer.MigrationsAssembly("TradeFlow.Infrastructure.SqlServerMigrations"));
+      }
+      else if (string.Equals(databaseProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
+      {
+        options.UseSqlite(connectionString);
+      }
+      else
+      {
+        throw new InvalidOperationException(
+            $"Unsupported database provider '{databaseProvider}'. Use 'SqlServer' or 'Sqlite'.");
+      }
+
       options.AddInterceptors(
           sp.GetRequiredService<AuditableEntityInterceptor>(),
           sp.GetRequiredService<DispatchDomainEventsInterceptor>());
