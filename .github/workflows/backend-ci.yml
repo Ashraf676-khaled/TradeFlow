@@ -16,23 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Build and test
+  test-and-deploy:
+    name: Test and deploy API
     runs-on: ubuntu-latest
-
-    services:
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "YourStrongPassword123!"
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "/opt/mssql/bin/sqlcmd -S localhost -U sa -P 'YourStrongPassword123!' -Q 'SELECT 1' || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Check out repository
@@ -46,57 +32,57 @@ jobs:
       - name: Restore
         run: dotnet restore TradeFlow.slnx
 
-      - name: Create Test Database
-        run: |
-          for i in {1..30}; do
-            /opt/mssql/bin/sqlcmd -S localhost -U sa -P 'YourStrongPassword123!' -Q "CREATE DATABASE TradeFlow_Test;" && break
-            echo "Waiting for SQL Server..."
-            sleep 2
-          done
-
       - name: Test
         run: dotnet test TradeFlow.slnx --configuration Release --no-restore
-        env:
-          Jwt__Secret: ${{ secrets.JWT_SECRET }}
-          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=TradeFlow_Test;User Id=sa;Password=YourStrongPassword123!;Encrypt=True;TrustServerCertificate=True;"
-
-  deploy:
-    name: Publish and Deploy API to hosting
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/devolop')
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Restore API
-        run: dotnet restore src/TradeFlow.Api/TradeFlow.Api.csproj
 
       - name: Publish API
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: dotnet publish src/TradeFlow.Api/TradeFlow.Api.csproj --configuration Release --no-restore --output ./publish
 
       - name: Take app offline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: take-app-offline
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          echo "App is being updated, please wait..." > app_offline.htm
-          curl -T app_offline.htm "ftp://${{ secrets.FTP_SERVER }}/wwwroot/app_offline.htm" --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+          set -euo pipefail
+          echo "The application is being updated. Please wait." > app_offline.htm
+          curl --fail --silent --show-error \
+            --user "${FTP_USERNAME}:${FTP_PASSWORD}" \
+            --upload-file app_offline.htm \
+            "ftp://${FTP_SERVER}/wwwroot/app_offline.htm"
           echo "Waiting for IIS to release file locks..."
           sleep 10
 
-      - name: Sync FTP Files
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Sync published API to hosting
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: SamKirkland/FTP-Deploy-Action@8e83cea8672e3fbcbb9fdafff34debf6ae4c5f65 # v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          port: 21
+          protocol: ftp
           local-dir: ./publish/
           server-dir: ./wwwroot/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            app_offline.htm
 
       - name: Bring app back online
+        if: ${{ always() && steps.take-app-offline.outcome != 'skipped' }}
+        id: bring-app-online
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          curl -Q "-DELE app_offline.htm" "ftp://${{ secrets.FTP_SERVER }}/wwwroot/" --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --user "${FTP_USERNAME}:${FTP_PASSWORD}" \
+            --quote "-DELE app_offline.htm" \
+            "ftp://${FTP_SERVER}/wwwroot/"
