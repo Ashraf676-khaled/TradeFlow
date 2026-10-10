@@ -29,7 +29,7 @@ jobs:
         ports:
           - 1433:1433
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'YourStrongPassword123!' -Q 'SELECT 1' || exit 1"
+          --health-cmd "/opt/mssql/bin/sqlcmd -S localhost -U sa -P 'YourStrongPassword123!' -Q 'SELECT 1' || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -48,7 +48,11 @@ jobs:
 
       - name: Create Test Database
         run: |
-          /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'YourStrongPassword123!' -Q "CREATE DATABASE TradeFlow_Test;"
+          for i in {1..30}; do
+            /opt/mssql/bin/sqlcmd -S localhost -U sa -P 'YourStrongPassword123!' -Q "CREATE DATABASE TradeFlow_Test;" && break
+            echo "Waiting for SQL Server..."
+            sleep 2
+          done
 
       - name: Test
         run: dotnet test TradeFlow.slnx --configuration Release --no-restore
