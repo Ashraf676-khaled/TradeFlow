@@ -19,6 +19,7 @@ public static class DependencyInjection
     services.AddHttpContextAccessor();
 
     services.Configure<Jwt>(configuration.GetSection("Jwt"));
+    services.Configure<PlatformAdminOptions>(configuration.GetSection("PlatformAdmin"));
 
     services.AddScoped<ICurrentUserService, CurrentUserService>();
     services.AddScoped<ITokenProvider, TokenProvider>();

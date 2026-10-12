@@ -15,4 +15,7 @@ public static class TenantErrors
 
   public static readonly Error NotFound = Error.NotFound(
       "Tenant.NotFound", "Tenant not found.");
+
+  public static readonly Error SubscriptionEndDateMustBeInFuture = Error.Validation(
+      "Tenant.SubscriptionEndDateMustBeInFuture", "Active subscriptions must have an end date in the future.");
 }

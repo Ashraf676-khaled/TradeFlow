@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using TradeFlow.Application.Common.Constants;
 
 public static class AuthenticationConfig
 {
@@ -38,7 +39,12 @@ public static class AuthenticationConfig
       };
     });
 
-    services.AddAuthorization();
+    services.AddAuthorization(options =>
+    {
+      options.AddPolicy("PlatformAdmin", policy =>
+          policy.RequireAuthenticatedUser()
+                .RequireClaim(AppClaimTypes.PlatformAdmin, "true"));
+    });
 
     return services;
   }

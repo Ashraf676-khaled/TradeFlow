@@ -10,7 +10,7 @@ public static class CookieExtensions
     {
       HttpOnly = true,                          // JS مايقدرش يقرأها خالص — حماية من XSS
       Secure = true,                             // بترسل بس عبر HTTPS
-      SameSite = SameSiteMode.Strict,            // غيّرها لـNone لو الفرونت على دومين مختلف (وقتها لازم Secure=true معاها)
+      SameSite = SameSiteMode.None,
       Expires = expiresUtc,
       Path = "/api/auth"                         // الكوكي تتبعت بس مع طلبات الـauth، مش كل الـAPI
     });
@@ -21,6 +21,12 @@ public static class CookieExtensions
 
   public static void ClearRefreshTokenCookie(this HttpContext httpContext)
   {
-    httpContext.Response.Cookies.Delete(RefreshTokenCookieName, new CookieOptions { Path = "/api/auth" });
+    httpContext.Response.Cookies.Delete(RefreshTokenCookieName, new CookieOptions
+    {
+      HttpOnly = true,
+      Secure = true,
+      SameSite = SameSiteMode.None,
+      Path = "/api/auth"
+    });
   }
 }

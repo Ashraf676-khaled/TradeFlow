@@ -58,7 +58,7 @@ namespace TradeFlow.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("IncurredAt")
+                    b.Property<DateTime>("IncurredAt")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("TenantId")
@@ -277,7 +277,7 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("OrderDate")
+                    b.Property<DateTime>("OrderDate")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("SalesRepresentativeId")
@@ -355,6 +355,9 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("SubscriptionEndDate")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

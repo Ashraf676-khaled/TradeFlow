@@ -362,6 +362,9 @@ namespace TradeFlow.Infrastructure.SqlServerMigrations.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateTimeOffset>("SubscriptionEndDate")
+                        .HasColumnType("datetimeoffset");
+
                     b.HasKey("Id");
 
                     b.ToTable("Tenants", (string)null);

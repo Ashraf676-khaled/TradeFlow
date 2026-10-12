@@ -87,6 +87,14 @@ Every Value Object and Aggregate is developed test-first at the unit level — i
 ✔ EGP_WithNegativeAmount_ShouldFailWithValidationError
 ✔ ApplyTo_HundredPercentDiscount_ShouldReturnZero
 
+## Tenant trial subscriptions and platform administration
+
+- New tenants are active for 30 days from registration. Requests for an inactive or expired tenant receive `403 Forbidden`; the API sets `IsActive` to `false` when it detects expiration.
+- Existing tenants receive a 30-day grace period when the subscription migration is applied.
+- Configure platform-owner user IDs on the API host using `PlatformAdmin__UserIds__0=<user-guid>` (additional owners use `PlatformAdmin__UserIds__1`, etc.). Register the owner account normally, retrieve its ID with `SELECT Id FROM Users WHERE Email = 'owner@example.com'`, configure that ID, restart the API, and sign in again. User IDs prevent an unverified email submitted through public registration from granting platform-wide access. The owner can then use the frontend's **إدارة الاشتراكات** page.
+- Only the platform-admin claim can access `GET /api/admin/tenants` and `PUT /api/admin/tenants/{tenantId}/subscription`; a tenant's regular `Admin` role cannot manage other tenants. The update payload contains `isActive` and `subscriptionEndDate`.
+- The frontend and API use a cross-origin HttpOnly refresh-token cookie. Configure CORS for the exact deployed frontend origin with credentials, and use `SameSite=None; Secure` on the API cookie. `POST /api/auth/refresh-token` and the legacy `/api/auth/refresh` route rotate the cookie and return a new access token.
+
 
 ## 🛠️ Tech Stack
 

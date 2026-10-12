@@ -126,6 +126,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 // 3. Security & Routing (لازم بعد الـ CORS وقبل الـ Endpoints)
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<TenantSubscriptionMiddleware>();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {

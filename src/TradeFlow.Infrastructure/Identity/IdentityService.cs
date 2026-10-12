@@ -16,6 +16,7 @@ public class IdentityService : IIdentityService
   private readonly IApplicationDbContext _context;
   private readonly ITokenProvider _tokenProvider;
   private readonly Jwt _jwtSettings;
+  private readonly PlatformAdminOptions _platformAdminOptions;
   private readonly PasswordHasher<User> _passwordHasher = new();
 
   private const int RefreshTokenDays = 7;
@@ -24,12 +25,14 @@ public class IdentityService : IIdentityService
       IUserRepository userRepository,
       IApplicationDbContext context,
       ITokenProvider tokenProvider,
-      IOptions<Jwt> jwtSettings)
+      IOptions<Jwt> jwtSettings,
+      IOptions<PlatformAdminOptions> platformAdminOptions)
   {
     _userRepository = userRepository;
     _context = context;
     _tokenProvider = tokenProvider;
     _jwtSettings = jwtSettings.Value;
+    _platformAdminOptions = platformAdminOptions.Value;
   }
 
   public async Task<Result<AuthResult>> RegisterAsync(
@@ -147,6 +150,10 @@ public class IdentityService : IIdentityService
         new(System.Security.Claims.ClaimTypes.Role, user.Role.ToString()),
         new(TradeFlow.Application.Common.Constants.AppClaimTypes.TenantId, user.TenantId.Value.ToString())
     };
+    if (_platformAdminOptions.IsAdmin(user.Id.Value))
+      claims.Add(new(
+          TradeFlow.Application.Common.Constants.AppClaimTypes.PlatformAdmin,
+          "true"));
 
     var accessToken = _tokenProvider.GenerateAccessToken(user.Id.Value, claims);
     var refreshTokenValue = _tokenProvider.GenerateRefreshToken();

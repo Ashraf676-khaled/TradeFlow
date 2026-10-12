@@ -16,5 +16,7 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         .ValueGeneratedNever();
 
     builder.Property(t => t.Name).HasMaxLength(200).IsRequired();
+    builder.Property(t => t.IsActive).IsRequired();
+    builder.Property(t => t.SubscriptionEndDate).IsRequired();
   }
 }

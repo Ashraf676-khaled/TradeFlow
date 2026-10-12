@@ -1,5 +1,8 @@
 ﻿namespace TradeFlow.Api.IntegrationTests.Common;
 
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -8,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
+using TradeFlow.Application.Common.Constants;
 using TradeFlow.Infrastructure.Data;
 using TradeFlow.Infrastructure.Data.Interceptors;
 
@@ -29,6 +32,23 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
   public CustomWebApplicationFactory()
   {
     _connection = new SqliteConnection(_connectionString);
+  }
+
+  public string CreatePlatformAdminToken()
+  {
+    var claims = new[]
+    {
+      new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+      new Claim(AppClaimTypes.PlatformAdmin, "true")
+    };
+    var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtSecret));
+    var token = new JwtSecurityToken(
+        TestJwtIssuer,
+        TestJwtAudience,
+        claims,
+        expires: DateTime.UtcNow.AddMinutes(15),
+        signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256));
+    return new JwtSecurityTokenHandler().WriteToken(token);
   }
 
   protected override IHost CreateHost(IHostBuilder builder)
@@ -60,7 +80,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
   protected override void ConfigureWebHost(IWebHostBuilder builder)
   {
     builder.UseEnvironment("Testing");
-
     builder.ConfigureServices(services =>
     {
       services.PostConfigure<Jwt>(options =>

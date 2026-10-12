@@ -7,11 +7,11 @@ using Xunit;
 public abstract class IntegrationTestBase : IClassFixture<CustomWebApplicationFactory>, IDisposable
 {
   protected readonly HttpClient Client;
-  private readonly CustomWebApplicationFactory _factory;
+  protected readonly CustomWebApplicationFactory Factory;
 
   protected IntegrationTestBase(CustomWebApplicationFactory factory)
   {
-    _factory = factory;
+    Factory = factory;
 
     // AllowAutoRedirect = false يمنع نهائيًا أي احتمال إن الـ Authorization header
     // يتشال بسبب اتباع Redirect (زي HTTPS Redirection) بين Origins مختلفة

@@ -35,23 +35,8 @@ public sealed class AuthEndpoints : IEndpoint
       return Results.Ok(new AuthResponse(result.Value.AccessToken, result.Value.AccessTokenExpiresUtc));
     });
 
-    group.MapPost("/refresh", async (
-        RefreshTokenRequest body, ISender sender, HttpContext httpContext, CancellationToken ct) =>
-    {
-      var refreshToken = httpContext.GetRefreshTokenFromCookie();
-      if (refreshToken is null)
-        return Results.Unauthorized();
-
-      var result = await sender.Send(new RefreshTokenCommand(body.AccessToken, refreshToken), ct);
-      if (result.IsError)
-      {
-        httpContext.ClearRefreshTokenCookie(); // التوكن القديم فسد/اتلغى، امسح الكوكي
-        return result.Errors.ToProblem();
-      }
-
-      httpContext.SetRefreshTokenCookie(result.Value.RefreshToken, result.Value.RefreshTokenExpiresUtc);
-      return Results.Ok(new AuthResponse(result.Value.AccessToken, result.Value.AccessTokenExpiresUtc));
-    });
+    group.MapPost("/refresh", Refresh);
+    group.MapPost("/refresh-token", Refresh);
 
     group.MapPost("/revoke", async (ISender sender, HttpContext httpContext, CancellationToken ct) =>
     {
@@ -64,5 +49,23 @@ public sealed class AuthEndpoints : IEndpoint
 
       return result.IsSuccess ? Results.NoContent() : result.Errors.ToProblem();
     });
+  }
+
+  private static async Task<IResult> Refresh(
+      RefreshTokenRequest body, ISender sender, HttpContext httpContext, CancellationToken ct)
+  {
+    var refreshToken = httpContext.GetRefreshTokenFromCookie();
+    if (refreshToken is null)
+      return Results.Unauthorized();
+
+    var result = await sender.Send(new RefreshTokenCommand(body.AccessToken, refreshToken), ct);
+    if (result.IsError)
+    {
+      httpContext.ClearRefreshTokenCookie();
+      return result.Errors.ToProblem();
+    }
+
+    httpContext.SetRefreshTokenCookie(result.Value.RefreshToken, result.Value.RefreshTokenExpiresUtc);
+    return Results.Ok(new AuthResponse(result.Value.AccessToken, result.Value.AccessTokenExpiresUtc));
   }
 }

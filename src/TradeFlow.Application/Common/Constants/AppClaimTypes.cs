@@ -3,4 +3,5 @@
 public static class AppClaimTypes
 {
   public const string TenantId = "tenant_id";
+  public const string PlatformAdmin = "platform_admin";
 }
