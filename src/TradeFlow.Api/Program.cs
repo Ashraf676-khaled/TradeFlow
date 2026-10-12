@@ -27,6 +27,7 @@ Log.Information("Starting up TradeFlow.Api");
 // Clean Architecture layers
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
 builder.Services
   .AddHealthChecks()
   .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"])
@@ -41,8 +42,9 @@ builder.Services.AddCors(options =>
   options.AddPolicy("AllowFrontend", policy =>
   {
     policy.WithOrigins("https://trade-flow-dashboard-one.vercel.app")
-          .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-          .WithHeaders("Authorization", "Content-Type");
+          .AllowAnyMethod()
+          .AllowAnyHeader()
+          .AllowCredentials();
   });
 });
 
@@ -111,7 +113,6 @@ if (app.Environment.IsDevelopment())
     options.Theme = ScalarTheme.Purple;
   });
 
-  // لو حابب تخلي لوحة تحكم هانجفاير متاحة في الـ Development فقط (أو تشيل الشرط لو عايزها في كل البيئات)
   app.UseHangfireDashboard("/hangfire");
 }
 
@@ -119,8 +120,6 @@ if (app.Environment.IsDevelopment())
 if (!app.Environment.IsEnvironment("Testing"))
 {
   app.UseHttpsRedirection();
-
-  // تسجيل وإ جدولة الـ Recurring Jobs عند بدء التطبيق في الإنتاج/التطوير الفعلي
   app.RegisterRecurringJobs();
 }
 
@@ -133,11 +132,13 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
   Predicate = _ => false,
   ResponseWriter = WriteHealthResponse
 }).AllowAnonymous();
+
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
   Predicate = check => check.Tags.Contains("ready"),
   ResponseWriter = WriteHealthResponse
 }).AllowAnonymous();
+
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
   ResponseWriter = WriteHealthResponse
