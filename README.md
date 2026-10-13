@@ -113,6 +113,7 @@ Set these values in the API host's environment/secrets; do not commit them or se
 
 - `Jwt__Secret`: a randomly generated secret of at least 32 bytes. The API refuses to start if it is missing or too short.
 - `ConnectionStrings__DefaultConnection`: a SQLite connection string pointing to persistent, writable storage on the API host. This API currently uses SQLite; the checked-in database path is only a local fallback.
+- Rate limits: 300 requests per minute per authenticated user (or source IP before authentication) across the API, plus a separate limit of 10 requests per minute per source IP on authentication endpoints. Excess requests receive `429 Too Many Requests`.
 
 The API allows browser requests from `https://trade-flow-dashboard-one.vercel.app`; localhost origins are allowed only in Development. Health endpoints are public and return status-only JSON:
 

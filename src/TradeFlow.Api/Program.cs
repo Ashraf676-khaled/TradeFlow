@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Scalar.AspNetCore;
 using Serilog;
 using TradeFlow.Api;
@@ -19,6 +21,44 @@ using TradeFlow.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddMemoryCache();
+builder.Services.AddRateLimiter(options =>
+{
+  options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+  options.OnRejected = async (context, cancellationToken) =>
+  {
+    context.HttpContext.Response.ContentType = "application/json";
+    await context.HttpContext.Response.WriteAsJsonAsync(
+        new { message = "طلبات كثيرة خلال وقت قصير. انتظر قليلًا ثم حاول مرة أخرى." },
+        cancellationToken);
+  };
+  options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+  {
+    var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    var partitionKey = !string.IsNullOrWhiteSpace(userId)
+        ? $"user:{userId}"
+        : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+    return RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey,
+        _ => new FixedWindowRateLimiterOptions
+        {
+          PermitLimit = 300,
+          Window = TimeSpan.FromMinutes(1),
+          QueueLimit = 0,
+          AutoReplenishment = true
+        });
+  });
+  options.AddPolicy("auth", context =>
+      RateLimitPartition.GetFixedWindowLimiter(
+          $"auth:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}",
+          _ => new FixedWindowRateLimiterOptions
+          {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+          }));
+});
 
 // Serilog لازم يتسجل الأول قبل أي حاجة، عشان يلقط أي Exception حتى وقت الـ Startup
 builder.AddLoggerConfigs();
@@ -126,6 +166,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 
 // 3. Security & Routing (لازم بعد الـ CORS وقبل الـ Endpoints)
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.UseMiddleware<TenantSubscriptionMiddleware>();
 

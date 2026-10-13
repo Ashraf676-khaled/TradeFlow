@@ -1,6 +1,7 @@
 ﻿namespace TradeFlow.Api.Endpoints.Auth;
 
 using MediatR;
+using Microsoft.AspNetCore.RateLimiting;
 using TradeFlow.Api.Extensions;
 using TradeFlow.Application.Users.Commands.Login;
 using TradeFlow.Application.Users.Commands.Register;
@@ -11,7 +12,9 @@ public sealed class AuthEndpoints : IEndpoint
 {
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
-    var group = app.MapGroup("/api/auth").WithTags("Auth");
+    var group = app.MapGroup("/api/auth")
+        .WithTags("Auth")
+        .RequireRateLimiting("auth");
 
     group.MapPost("/register", async (
         RegisterCommand command, ISender sender, HttpContext httpContext, CancellationToken ct) =>
