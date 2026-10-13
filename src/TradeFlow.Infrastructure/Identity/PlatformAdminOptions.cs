@@ -2,9 +2,9 @@ namespace TradeFlow.Infrastructure.Identity;
 
 public sealed class PlatformAdminOptions
 {
-  public string[] UserIds { get; set; } = [];
+  public string? Email { get; set; }
 
-  public bool IsAdmin(Guid userId) =>
-      UserIds.Any(configuredUserId =>
-          Guid.TryParse(configuredUserId, out var parsedUserId) && parsedUserId == userId);
+  public bool IsAdmin(string email) =>
+      !string.IsNullOrWhiteSpace(Email) &&
+      string.Equals(Email.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase);
 }

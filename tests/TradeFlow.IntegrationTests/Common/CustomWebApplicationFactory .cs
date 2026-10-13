@@ -14,6 +14,7 @@ using Microsoft.IdentityModel.Tokens;
 using TradeFlow.Application.Common.Constants;
 using TradeFlow.Infrastructure.Data;
 using TradeFlow.Infrastructure.Data.Interceptors;
+using TradeFlow.Infrastructure.Identity;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -88,6 +89,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         options.Issuer = TestJwtIssuer;
         options.Audience = TestJwtAudience;
         options.ExpiryInMinutes = 15;
+      });
+      services.PostConfigure<PlatformAdminOptions>(options =>
+      {
+        options.Email = "platform-admin@test.com";
       });
       services.PostConfigure<JwtBearerOptions>(options =>
       {

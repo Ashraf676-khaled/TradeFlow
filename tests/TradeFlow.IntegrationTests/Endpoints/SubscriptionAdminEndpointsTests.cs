@@ -122,12 +122,6 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
     Client.DefaultRequestHeaders.Authorization =
         new AuthenticationHeaderValue("Bearer", platformAdminAuth!.AccessToken);
 
-    using var unprivilegedListResponse = await Client.GetAsync("/api/admin/tenants");
-    Assert.Equal(HttpStatusCode.Forbidden, unprivilegedListResponse.StatusCode);
-
-    Client.DefaultRequestHeaders.Authorization =
-        new AuthenticationHeaderValue("Bearer", Factory.CreatePlatformAdminToken());
-
     using var tenantListResponse = await Client.GetAsync("/api/admin/tenants");
     Assert.Equal(HttpStatusCode.OK, tenantListResponse.StatusCode);
     var tenants = await tenantListResponse.Content.ReadFromJsonAsync<List<TenantSubscriptionDto>>();
@@ -163,13 +157,13 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
   }
 
   [Fact]
-  public void PlatformAdminOptions_OnlyMatchesConfiguredUserIds()
+  public void PlatformAdminOptions_MatchesConfiguredEmailIgnoringCaseAndWhitespace()
   {
-    var platformAdminId = Guid.NewGuid();
-    var options = new PlatformAdminOptions { UserIds = [platformAdminId.ToString()] };
+    var options = new PlatformAdminOptions { Email = "owner@example.com" };
 
-    Assert.True(options.IsAdmin(platformAdminId));
-    Assert.False(options.IsAdmin(Guid.NewGuid()));
+    Assert.True(options.IsAdmin(" OWNER@example.com "));
+    Assert.False(options.IsAdmin("other@example.com"));
+    Assert.False(options.IsAdmin(""));
   }
 
   private sealed record TenantSubscriptionDto(
