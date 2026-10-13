@@ -18,6 +18,7 @@ using TradeFlow.Infrastructure.BackgroundJobs;
 using TradeFlow.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddMemoryCache();
 
 // Serilog لازم يتسجل الأول قبل أي حاجة، عشان يلقط أي Exception حتى وقت الـ Startup
 builder.AddLoggerConfigs();

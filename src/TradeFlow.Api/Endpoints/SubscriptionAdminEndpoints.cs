@@ -1,6 +1,7 @@
 namespace TradeFlow.Api.Endpoints;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TradeFlow.Api.Extensions;
 using TradeFlow.Domain.Common.Identifiers;
 using TradeFlow.Infrastructure.Data;
@@ -32,6 +33,7 @@ public sealed class SubscriptionAdminEndpoints : IEndpoint
         Guid tenantId,
         UpdateTenantSubscriptionRequest request,
         AppDbContext dbContext,
+        IMemoryCache cache,
         CancellationToken ct) =>
     {
       var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
@@ -45,6 +47,7 @@ public sealed class SubscriptionAdminEndpoints : IEndpoint
         return updateResult.Errors.ToProblem();
 
       await dbContext.SaveChangesAsync(ct);
+      cache.Remove($"tenant-subscription:{tenantId}");
 
       return Results.Ok(new TenantSubscriptionResponse(
           tenant.Id.Value,

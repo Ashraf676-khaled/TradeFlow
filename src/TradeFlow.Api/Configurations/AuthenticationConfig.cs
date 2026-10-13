@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using TradeFlow.Application.Common.Constants;
 
 public static class AuthenticationConfig
@@ -41,9 +42,15 @@ public static class AuthenticationConfig
 
     services.AddAuthorization(options =>
     {
+      var platformAdminEmail = configuration["PlatformAdmin:Email"]?.Trim();
       options.AddPolicy("PlatformAdmin", policy =>
           policy.RequireAuthenticatedUser()
-                .RequireClaim(AppClaimTypes.PlatformAdmin, "true"));
+                .RequireAssertion(context =>
+                    !string.IsNullOrWhiteSpace(platformAdminEmail) &&
+                    string.Equals(
+                        context.User.FindFirst(ClaimTypes.Email)?.Value,
+                        platformAdminEmail,
+                        StringComparison.OrdinalIgnoreCase)));
     });
 
     return services;

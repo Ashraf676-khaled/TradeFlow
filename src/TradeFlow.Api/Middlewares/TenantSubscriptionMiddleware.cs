@@ -1,14 +1,20 @@
 namespace TradeFlow.Api.Middlewares;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using TradeFlow.Application.Common.Constants;
 using TradeFlow.Domain.Common.Identifiers;
 using TradeFlow.Infrastructure.Data;
+using TradeFlow.Infrastructure.Identity;
 
 public sealed class TenantSubscriptionMiddleware(
     RequestDelegate next,
-    ILogger<TenantSubscriptionMiddleware> logger)
+    ILogger<TenantSubscriptionMiddleware> logger,
+    IMemoryCache cache,
+    IOptions<PlatformAdminOptions> platformAdminOptions)
 {
+  private static readonly TimeSpan SubscriptionCacheDuration = TimeSpan.FromSeconds(5);
   private const string ExpiredSubscriptionMessage =
       "الحساب غير مفعل أو انتهت الفترة التجريبية (30 يوماً)، يرجى التواصل مع الإدارة للتجديد.";
 
@@ -20,7 +26,8 @@ public sealed class TenantSubscriptionMiddleware(
       return;
     }
 
-    if (context.User.HasClaim(AppClaimTypes.PlatformAdmin, "true")
+    var email = context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+    if (platformAdminOptions.Value.IsAdmin(email)
         || context.Request.Path.StartsWithSegments("/api/auth"))
     {
       await next(context);
@@ -34,23 +41,36 @@ public sealed class TenantSubscriptionMiddleware(
       return;
     }
 
-    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-        entity => entity.Id == new TenantId(tenantId),
-        context.RequestAborted);
+    var cacheKey = $"tenant-subscription:{tenantId}";
+    var subscription = await cache.GetOrCreateAsync(cacheKey, async entry =>
+    {
+      entry.AbsoluteExpirationRelativeToNow = SubscriptionCacheDuration;
+      return await dbContext.Tenants
+          .AsNoTracking()
+          .Where(entity => entity.Id == new TenantId(tenantId))
+          .Select(entity => new TenantSubscriptionSnapshot(
+              entity.IsActive,
+              entity.SubscriptionEndDate))
+          .SingleOrDefaultAsync(context.RequestAborted);
+    });
 
-    if (tenant is null)
+    if (subscription is null)
     {
       logger.LogWarning("Authenticated request references missing tenant {TenantId}.", tenantId);
       await RejectRequest(context);
       return;
     }
 
-    if (!tenant.IsActive || tenant.SubscriptionEndDate <= DateTimeOffset.UtcNow)
+    if (!subscription.IsActive || subscription.SubscriptionEndDate <= DateTimeOffset.UtcNow)
     {
-      if (tenant.IsActive)
+      if (subscription.IsActive)
       {
-        tenant.Deactivate();
-        await dbContext.SaveChangesAsync(context.RequestAborted);
+        await dbContext.Tenants
+            .Where(entity => entity.Id == new TenantId(tenantId) && entity.IsActive)
+            .ExecuteUpdateAsync(
+                update => update.SetProperty(entity => entity.IsActive, false),
+                context.RequestAborted);
+        cache.Remove(cacheKey);
       }
 
       await RejectRequest(context);
@@ -67,4 +87,8 @@ public sealed class TenantSubscriptionMiddleware(
         new { message = ExpiredSubscriptionMessage },
         context.RequestAborted);
   }
+
+  private sealed record TenantSubscriptionSnapshot(
+      bool IsActive,
+      DateTimeOffset SubscriptionEndDate);
 }

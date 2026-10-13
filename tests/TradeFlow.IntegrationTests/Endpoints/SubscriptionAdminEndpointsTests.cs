@@ -122,6 +122,16 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
     Client.DefaultRequestHeaders.Authorization =
         new AuthenticationHeaderValue("Bearer", platformAdminAuth!.AccessToken);
 
+    using (var scope = Factory.Services.CreateScope())
+    {
+      var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+      await dbContext.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE Tenants SET SubscriptionEndDate = {DateTimeOffset.UtcNow.AddDays(-1)} WHERE Name = {"Platform Admin Company"}");
+    }
+
+    using var expiredAdminTenantResponse = await Client.GetAsync("/api/settings");
+    Assert.Equal(HttpStatusCode.OK, expiredAdminTenantResponse.StatusCode);
+
     using var tenantListResponse = await Client.GetAsync("/api/admin/tenants");
     Assert.Equal(HttpStatusCode.OK, tenantListResponse.StatusCode);
     var tenants = await tenantListResponse.Content.ReadFromJsonAsync<List<TenantSubscriptionDto>>();
