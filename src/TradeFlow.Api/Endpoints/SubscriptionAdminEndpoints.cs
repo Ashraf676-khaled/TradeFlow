@@ -26,7 +26,33 @@ public sealed class SubscriptionAdminEndpoints : IEndpoint
               tenant.SubscriptionEndDate))
           .ToListAsync(ct);
 
-      return Results.Ok(tenants);
+      var tenantIds = tenants.Select(tenant => tenant.Id).ToArray();
+      var usersByTenant = await dbContext.Users
+          .IgnoreQueryFilters()
+          .AsNoTracking()
+          .Where(user => tenantIds.Contains(user.TenantId.Value))
+          .Select(user => new
+          {
+            TenantId = user.TenantId.Value,
+            User = new PlatformUserResponse(
+                user.Id.Value,
+                user.FullName,
+                user.Email.Value,
+                user.Role.ToString(),
+                user.IsActive)
+          })
+          .ToListAsync(ct);
+      var usersByTenantId = usersByTenant
+          .GroupBy(item => item.TenantId)
+          .ToDictionary(group => group.Key, group => (IReadOnlyList<PlatformUserResponse>)group
+              .Select(item => item.User)
+              .OrderBy(user => user.FullName)
+              .ToList());
+
+      return Results.Ok(tenants.Select(tenant => tenant with
+      {
+        Users = usersByTenantId.GetValueOrDefault(tenant.Id, Array.Empty<PlatformUserResponse>())
+      }));
     });
 
     group.MapPut("/{tenantId:guid}/subscription", async (
@@ -66,4 +92,14 @@ public sealed record TenantSubscriptionResponse(
     Guid Id,
     string Name,
     bool IsActive,
-    DateTimeOffset SubscriptionEndDate);
+    DateTimeOffset SubscriptionEndDate)
+{
+  public IReadOnlyList<PlatformUserResponse> Users { get; init; } = [];
+}
+
+public sealed record PlatformUserResponse(
+    Guid Id,
+    string FullName,
+    string Email,
+    string Role,
+    bool IsActive);

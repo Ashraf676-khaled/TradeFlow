@@ -150,7 +150,7 @@ public class IdentityService : IIdentityService
         new(System.Security.Claims.ClaimTypes.Role, user.Role.ToString()),
         new(TradeFlow.Application.Common.Constants.AppClaimTypes.TenantId, user.TenantId.Value.ToString())
     };
-    if (_platformAdminOptions.IsAdmin(user.Email.Value))
+    if (_platformAdminOptions.IsAdmin(user.Id.Value, user.Email.Value))
       claims.Add(new(
           TradeFlow.Application.Common.Constants.AppClaimTypes.PlatformAdmin,
           "true"));

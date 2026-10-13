@@ -178,6 +178,21 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
     Assert.False(options.IsAdmin(""));
   }
 
+  [Fact]
+  public void PlatformAdminOptions_MatchesConfiguredUserId_AndPrefersItOverEmail()
+  {
+    var configuredUserId = Guid.NewGuid();
+    var options = new PlatformAdminOptions
+    {
+      UserId = configuredUserId,
+      Email = "owner@example.com"
+    };
+
+    Assert.True(options.IsAdmin(configuredUserId));
+    Assert.False(options.IsAdmin(Guid.NewGuid(), "owner@example.com"));
+    Assert.False(options.IsAdmin(null, "owner@example.com"));
+  }
+
   private sealed record TenantSubscriptionDto(
       Guid Id,
       string Name,

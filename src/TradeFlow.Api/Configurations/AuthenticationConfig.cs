@@ -42,15 +42,19 @@ public static class AuthenticationConfig
 
     services.AddAuthorization(options =>
     {
-      var platformAdminEmail = configuration["PlatformAdmin:Email"]?.Trim();
+      var platformAdminOptions = configuration.GetSection("PlatformAdmin").Get<TradeFlow.Infrastructure.Identity.PlatformAdminOptions>()
+          ?? new TradeFlow.Infrastructure.Identity.PlatformAdminOptions();
       options.AddPolicy("PlatformAdmin", policy =>
           policy.RequireAuthenticatedUser()
                 .RequireAssertion(context =>
-                    !string.IsNullOrWhiteSpace(platformAdminEmail) &&
-                    string.Equals(
-                        context.User.FindFirst(ClaimTypes.Email)?.Value,
-                        platformAdminEmail,
-                        StringComparison.OrdinalIgnoreCase)));
+                {
+                  var userIdValue = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? context.User.FindFirst("sub")?.Value;
+                  var userId = Guid.TryParse(userIdValue, out var parsedUserId) ? parsedUserId : (Guid?)null;
+                  return platformAdminOptions.IsAdmin(
+                      userId,
+                      context.User.FindFirst(ClaimTypes.Email)?.Value);
+                }));
     });
 
     return services;

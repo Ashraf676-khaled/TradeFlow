@@ -27,8 +27,11 @@ public sealed class TenantSubscriptionMiddleware(
       return;
     }
 
+    var userIdValue = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        ?? context.User.FindFirst("sub")?.Value;
+    var userId = Guid.TryParse(userIdValue, out var parsedUserId) ? parsedUserId : (Guid?)null;
     var email = context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-    if (platformAdminOptions.Value.IsAdmin(email)
+    if (platformAdminOptions.Value.IsAdmin(userId, email)
         || context.Request.Path.StartsWithSegments("/api/auth"))
     {
       await next(context);
