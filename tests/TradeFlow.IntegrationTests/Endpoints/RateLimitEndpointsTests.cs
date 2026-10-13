@@ -19,5 +19,6 @@ public sealed class RateLimitEndpointsTests : IntegrationTestBase
 
     using var rateLimitedResponse = await Client.PostAsync("/api/auth/revoke", content: null);
     Assert.Equal(HttpStatusCode.TooManyRequests, rateLimitedResponse.StatusCode);
+    Assert.True(rateLimitedResponse.Headers.TryGetValues("Retry-After", out _));
   }
 }

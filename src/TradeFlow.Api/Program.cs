@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Globalization;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,11 @@ builder.Services.AddRateLimiter(options =>
   options.OnRejected = async (context, cancellationToken) =>
   {
     context.HttpContext.Response.ContentType = "application/json";
+    if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+    {
+      context.HttpContext.Response.Headers["Retry-After"] =
+          Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+    }
     await context.HttpContext.Response.WriteAsJsonAsync(
         new { message = "طلبات كثيرة خلال وقت قصير. انتظر قليلًا ثم حاول مرة أخرى." },
         cancellationToken);
