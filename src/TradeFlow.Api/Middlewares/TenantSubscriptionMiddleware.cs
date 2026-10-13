@@ -1,4 +1,4 @@
-namespace TradeFlow.Api.Middlewares;
+﻿namespace TradeFlow.Api.Middlewares;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -17,7 +17,7 @@ public sealed class TenantSubscriptionMiddleware(
 {
   private static readonly TimeSpan SubscriptionCacheDuration = TimeSpan.FromSeconds(5);
   private const string ExpiredSubscriptionMessage =
-      "الحساب غير مفعل أو انتهت الفترة التجريبية (30 يوماً)، يرجى التواصل مع الإدارة للتجديد.";
+      "Your free 30-day trial has expired. Please contact the platform administrator to renew your subscription.";
 
   public async Task InvokeAsync(HttpContext context, AppDbContext dbContext)
   {
@@ -93,7 +93,8 @@ public sealed class TenantSubscriptionMiddleware(
 
   private static async Task RejectRequest(HttpContext context)
   {
-    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+    context.Response.StatusCode = StatusCodes.Status402PaymentRequired;
+    context.Response.ContentType = "application/json; charset=utf-8";
     await context.Response.WriteAsJsonAsync(
         new { message = ExpiredSubscriptionMessage },
         context.RequestAborted);

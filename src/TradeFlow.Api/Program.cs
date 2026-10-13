@@ -34,7 +34,7 @@ builder.Services.AddRateLimiter(options =>
           Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
     }
     await context.HttpContext.Response.WriteAsJsonAsync(
-        new { message = "طلبات كثيرة خلال وقت قصير. انتظر قليلًا ثم حاول مرة أخرى." },
+        new { message = "Too many requests. Please wait a moment before trying again." },
         cancellationToken);
   };
   options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
