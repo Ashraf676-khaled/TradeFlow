@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TradeFlow.Application.Common.Constants;
 using TradeFlow.Domain.Common.Identifiers;
+using TradeFlow.Domain.Users;
 using TradeFlow.Infrastructure.Data;
 using TradeFlow.Infrastructure.Identity;
 
@@ -71,6 +72,13 @@ public sealed class TenantSubscriptionMiddleware(
                 update => update.SetProperty(entity => entity.IsActive, false),
                 context.RequestAborted);
         cache.Remove(cacheKey);
+      }
+
+      if (context.Request.Method == HttpMethods.Get &&
+          context.User.IsInRole(nameof(UserRole.Admin)))
+      {
+        await next(context);
+        return;
       }
 
       await RejectRequest(context);

@@ -74,7 +74,7 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
   }
 
   [Fact]
-  public async Task ExpiredSubscription_IsDeactivatedAndProtectedRequestIsForbidden()
+  public async Task ExpiredSubscription_AllowsAdminReadOnlyAccessAndBlocksWrites()
   {
     var email = $"expired{Guid.NewGuid():N}@test.com";
     var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", new
@@ -96,9 +96,11 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
     }
 
     using var response = await Client.GetAsync("/api/settings");
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    var body = await response.Content.ReadFromJsonAsync<SubscriptionErrorDto>();
+    using var updateResponse = await Client.PutAsJsonAsync("/api/settings", new { currencySymbol = "EGP" });
+    Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);
+    var body = await updateResponse.Content.ReadFromJsonAsync<SubscriptionErrorDto>();
     Assert.Contains("انتهت الفترة التجريبية", body?.Message);
 
     using var verificationScope = Factory.Services.CreateScope();
