@@ -8,8 +8,10 @@ import {
   Package,
   CreditCard,
   ArrowLeft,
+  AlertTriangle,
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
+import { Product } from '../../types';
 
 
 interface OverviewPageProps {
@@ -22,8 +24,20 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenCreateOrder })
     currencySymbol,
     orders,
     invoices,
+    products,
+    settings,
     setCurrentPage 
   } = useTenant();
+
+  // نفس قاعدة حد الأمان المستخدمة في InventoryPage: الحد الخاص بالصنف أولاً،
+  // وإلا نرجع للحد العام من الإعدادات (الافتراضي 5).
+  const fallbackThreshold = settings.lowStockThreshold > 0 ? settings.lowStockThreshold : 5;
+  const safetyThreshold = (p: Product) =>
+    (p.minStockLevel && p.minStockLevel > 0 ? p.minStockLevel : fallbackThreshold);
+  const lowStockCount = products.filter(p => {
+    const available = p.availableStock ?? p.currentStock ?? 0;
+    return available <= safetyThreshold(p);
+  }).length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -70,6 +84,24 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenCreateOrder })
           <div><p className="text-xs font-bold text-slate-500">فواتير غير مسددة</p><p className="mt-1 text-2xl font-extrabold text-slate-900">{invoices.filter(invoice => invoice.status !== 'مدفوع').length}</p></div>
           <FileText className="h-5 w-5 text-blue-700" />
         </div>
+        <button
+          type="button"
+          onClick={() => setCurrentPage('inventory')}
+          className="text-right flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition"
+        >
+          <div>
+            <p className="text-xs font-bold text-slate-500">تنبيهات نواقص المخزون</p>
+            <p className={`mt-1 text-2xl font-extrabold ${lowStockCount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+              {lowStockCount} <span className="text-xs font-normal text-slate-500">أصناف تحتاج إعادة طلب</span>
+            </p>
+            <p className={`mt-1 text-[10px] font-bold ${lowStockCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {lowStockCount > 0 ? '⚠ أصناف بلغت حد الأمان أو نفدت' : 'كل الأصناف أعلى من حد الأمان'}
+            </p>
+          </div>
+          <span className={`p-3 rounded-xl ${lowStockCount > 0 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+        </button>
       </div>
 
       {/* Quick Actions */}
