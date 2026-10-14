@@ -11,7 +11,9 @@ public sealed class GetCustomersQueryHandler(IApplicationDbContext context, IMap
 {
   public async Task<PaginatedList<CustomerDto>> Handle(GetCustomersQuery request, CancellationToken ct)
   {
-    var query = context.Customers.AsQueryable();
+    // AsNoTracking: this is a read-only list query — skipping change tracking
+    // avoids the overhead of snapshotting every tracked entity on SaveChanges.
+    var query = context.Customers.AsNoTracking().AsQueryable();
 
     if (request.IsActive.HasValue)
       query = query.Where(c => c.IsActive == request.IsActive.Value);
