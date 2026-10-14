@@ -64,6 +64,18 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true
           }));
+  // The silent token-refresh fires from every open tab plus the proactive
+  // scheduler, so it gets a separate, more generous bucket than login.
+  options.AddPolicy("auth-refresh", context =>
+      RateLimitPartition.GetFixedWindowLimiter(
+          $"auth-refresh:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}",
+          _ => new FixedWindowRateLimiterOptions
+          {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+          }));
 });
 
 // Serilog لازم يتسجل الأول قبل أي حاجة، عشان يلقط أي Exception حتى وقت الـ Startup

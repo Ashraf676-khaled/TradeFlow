@@ -38,8 +38,10 @@ public sealed class AuthEndpoints : IEndpoint
       return Results.Ok(new AuthResponse(result.Value.AccessToken, result.Value.AccessTokenExpiresUtc));
     });
 
-    group.MapPost("/refresh", Refresh);
-    group.MapPost("/refresh-token", Refresh);
+    // Refresh uses its own bucket (30/min) so concurrent tabs refreshing
+    // silently never trip the stricter 10/min login limit and get a 429.
+    group.MapPost("/refresh", Refresh).RequireRateLimiting("auth-refresh");
+    group.MapPost("/refresh-token", Refresh).RequireRateLimiting("auth-refresh");
 
     group.MapPost("/revoke", async (ISender sender, HttpContext httpContext, CancellationToken ct) =>
     {

@@ -18,7 +18,9 @@ public sealed class GetInvoicesQueryHandler(IApplicationDbContext context, IMapp
     if (request.CustomerId.HasValue)
       query = query.Where(i => i.CustomerId == new CustomerId(request.CustomerId.Value));
 
-    var projected = query.OrderByDescending(i => i.IssuedAt.ToString()).ProjectTo<InvoiceDto>(mapper.ConfigurationProvider);
+    // Order by the raw DateTimeOffset — SQL translates it and can use an
+    // index; the previous .ToString() converted every row before sorting.
+    var projected = query.OrderByDescending(i => i.IssuedAt).ProjectTo<InvoiceDto>(mapper.ConfigurationProvider);
     return await PaginatedList<InvoiceDto>.CreateAsync(projected, request.PageNumber, request.PageSize, ct);
   }
 }

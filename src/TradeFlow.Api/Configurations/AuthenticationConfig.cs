@@ -1,11 +1,19 @@
-﻿using System.Text;
+﻿using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
+using Serilog;
 using TradeFlow.Application.Common.Constants;
 
 public static class AuthenticationConfig
 {
+  // The repository default committed in appsettings.json. Running with it in
+  // production means anyone who reads the repo can forge tokens, and if a
+  // hosting platform regenerates Jwt__Secret on every restart, every user is
+  // logged out each time the app recycles.
+  private const string RepositoryDefaultSecret = "SUPER_SECRET_KEY_EXCEEDING_32_BYTES_FOR_HS256";
+
   public static IServiceCollection AddAuthenticationConfig(
       this IServiceCollection services,
       IConfiguration configuration)
@@ -18,6 +26,23 @@ public static class AuthenticationConfig
     {
       throw new InvalidOperationException(
           "Jwt:Secret must be configured with a random key of at least 32 bytes using user secrets or the Jwt__Secret environment variable.");
+    }
+
+    // Log a short fingerprint (never the secret itself). After a restart the
+    // fingerprint must stay identical — if it changes, Jwt__Secret is being
+    // regenerated and every previously issued token/refresh cookie dies.
+    var fingerprint = Convert.ToHexString(
+        SHA256.HashData(Encoding.UTF8.GetBytes(jwtSettings.Secret)))[..12];
+    Log.Information(
+        "JWT signing key fingerprint: {Fingerprint}. Expiry: {ExpiryMinutes} min.",
+        fingerprint,
+        jwtSettings.ExpiryInMinutes);
+    if (string.Equals(jwtSettings.Secret, RepositoryDefaultSecret, StringComparison.Ordinal))
+    {
+      Log.Warning(
+          "Jwt:Secret is still the repository default from appsettings.json. " +
+          "Set the Jwt__Secret environment variable (stable across restarts) on the host " +
+          "so tokens survive redeployments and the default key is not public.");
     }
 
     services.AddAuthentication(options =>
@@ -35,6 +60,9 @@ public static class AuthenticationConfig
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtSettings.Issuer,
         ValidAudience = jwtSettings.Audience,
+        // Tolerate up to 5 minutes of clock skew between the token issuer and
+        // the server so tokens minted right before a restart are not rejected.
+        ClockSkew = TimeSpan.FromMinutes(5),
         IssuerSigningKey = new SymmetricSecurityKey(
                   Encoding.UTF8.GetBytes(jwtSettings.Secret))
       };
