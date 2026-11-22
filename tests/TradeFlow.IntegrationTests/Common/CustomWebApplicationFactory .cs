@@ -27,9 +27,13 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     Cache = SqliteCacheMode.Shared
   }.ToString();
   private readonly SqliteConnection _connection;
+  private readonly int _authPermitLimit;
 
-  public CustomWebApplicationFactory()
+  public CustomWebApplicationFactory() : this(1000) { }
+
+  protected CustomWebApplicationFactory(int authPermitLimit)
   {
+    _authPermitLimit = authPermitLimit;
     _connection = new SqliteConnection(_connectionString);
   }
 
@@ -41,12 +45,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
       var originalIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer");
       var originalAudience = Environment.GetEnvironmentVariable("Jwt__Audience");
       var originalExpiry = Environment.GetEnvironmentVariable("Jwt__ExpiryInMinutes");
+      var originalAuthPermitLimit = Environment.GetEnvironmentVariable("RateLimit__AuthPermitLimit");
+      var originalPlatformAdminUserId = Environment.GetEnvironmentVariable("PlatformAdmin__UserId");
       try
       {
         Environment.SetEnvironmentVariable("Jwt__Secret", TestJwtSecret);
         Environment.SetEnvironmentVariable("Jwt__Issuer", TestJwtIssuer);
         Environment.SetEnvironmentVariable("Jwt__Audience", TestJwtAudience);
         Environment.SetEnvironmentVariable("Jwt__ExpiryInMinutes", "15");
+        Environment.SetEnvironmentVariable("RateLimit__AuthPermitLimit", _authPermitLimit.ToString());
+        Environment.SetEnvironmentVariable("PlatformAdmin__UserId", string.Empty);
         return base.CreateHost(builder);
       }
       finally
@@ -55,6 +63,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Jwt__Issuer", originalIssuer);
         Environment.SetEnvironmentVariable("Jwt__Audience", originalAudience);
         Environment.SetEnvironmentVariable("Jwt__ExpiryInMinutes", originalExpiry);
+        Environment.SetEnvironmentVariable("RateLimit__AuthPermitLimit", originalAuthPermitLimit);
+        Environment.SetEnvironmentVariable("PlatformAdmin__UserId", originalPlatformAdminUserId);
       }
     }
   }
@@ -65,7 +75,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     builder.ConfigureAppConfiguration((_, configuration) =>
         configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-          ["PlatformAdmin:Email"] = "platform-admin@test.com"
+          ["PlatformAdmin:Email"] = "platform-admin@test.com",
+          ["PlatformAdmin:UserId"] = string.Empty,
+          ["RateLimit:AuthPermitLimit"] = _authPermitLimit.ToString()
         }));
     builder.ConfigureServices(services =>
     {
@@ -78,6 +90,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
       });
       services.PostConfigure<PlatformAdminOptions>(options =>
       {
+        options.UserId = null;
         options.Email = "platform-admin@test.com";
       });
       services.PostConfigure<JwtBearerOptions>(options =>

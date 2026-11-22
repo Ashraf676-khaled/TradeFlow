@@ -370,6 +370,34 @@ namespace TradeFlow.Infrastructure.SqlServerMigrations.Migrations
                     b.ToTable("Tenants", (string)null);
                 });
 
+            modelBuilder.Entity("TradeFlow.Domain.Users.ExternalLogin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Provider", "ProviderSubject")
+                        .IsUnique();
+
+                    b.ToTable("ExternalLogins", (string)null);
+                });
+
             modelBuilder.Entity("TradeFlow.Domain.Users.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -404,6 +432,25 @@ namespace TradeFlow.Infrastructure.SqlServerMigrations.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("EmailConfirmed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTimeOffset?>("EmailOtpExpiresUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("EmailOtpFailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EmailOtpHash")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EmailOtpPurpose")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -424,6 +471,11 @@ namespace TradeFlow.Infrastructure.SqlServerMigrations.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("TwoFactorEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.HasKey("Id");
 
@@ -989,6 +1041,15 @@ namespace TradeFlow.Infrastructure.SqlServerMigrations.Migrations
                         .IsRequired();
 
                     b.Navigation("UnitPrice")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TradeFlow.Domain.Users.ExternalLogin", b =>
+                {
+                    b.HasOne("TradeFlow.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

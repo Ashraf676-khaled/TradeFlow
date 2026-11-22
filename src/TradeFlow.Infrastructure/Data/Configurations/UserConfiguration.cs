@@ -38,6 +38,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     builder.Property(u => u.PasswordHash).HasMaxLength(250).IsRequired();
 
     builder.Property(u => u.Role).HasConversion<string>().HasMaxLength(50);
+    builder.Property(u => u.EmailOtpPurpose).HasConversion<string>().HasMaxLength(32);
+    builder.Property(u => u.EmailOtpHash).HasMaxLength(500);
+    builder.Property(u => u.EmailConfirmed).HasDefaultValue(true);
+    builder.Property(u => u.TwoFactorEnabled).HasDefaultValue(false);
 
     builder.HasMany(u => u.RefreshTokens)
         .WithOne()

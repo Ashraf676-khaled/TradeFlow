@@ -112,7 +112,21 @@ Set these values in the API host's environment/secrets; do not commit them or se
 
 - `Jwt__Secret`: a randomly generated secret of at least 32 bytes. The API refuses to start if it is missing or too short.
 - `ConnectionStrings__DefaultConnection`: a SQLite connection string pointing to persistent, writable storage on the API host. This API currently uses SQLite; the checked-in database path is only a local fallback.
+- `Smtp__Email` and `Smtp__Password`: the Gmail account and app password used by the SMTP sender. The SMTP host, port, and display name are non-secret defaults in `appsettings.json`.
+- `GoogleAuth__ClientId`: the OAuth client ID whose audience is accepted by the API.
 - Rate limits: 300 requests per minute per authenticated user (or source IP before authentication) across the API, plus a separate limit of 10 requests per minute per source IP on authentication endpoints. Excess requests receive `429 Too Many Requests`.
+
+For local development, set these values with User Secrets without adding credentials to either appsettings file:
+
+```powershell
+dotnet user-secrets set "Smtp:Email" "<gmail-address>" --project src\TradeFlow.Api\TradeFlow.Api.csproj
+dotnet user-secrets set "Smtp:Password" "<gmail-app-password>" --project src\TradeFlow.Api\TradeFlow.Api.csproj
+dotnet user-secrets set "GoogleAuth:ClientId" "<google-oauth-client-id>" --project src\TradeFlow.Api\TradeFlow.Api.csproj
+```
+
+The Google sign-in button in `src/TradeFlow.Web` uses the same public client ID from `VITE_GOOGLE_CLIENT_ID` in a local `.env` file or the frontend host's build environment. `.env` files are ignored by Git; configure the authorized JavaScript origin in Google Cloud Console.
+
+Registration now returns `requiresTwoFactor: true` and does not issue tokens until `POST /api/auth/verify-otp` confirms the emailed code. Successful normal login, OTP verification, and Google login return the existing access-token response and refresh-token cookie. The OTP expires after five minutes and is invalidated after five failed attempts. Authenticated users can enable email 2FA with `POST /api/auth/enable-two-factor` and then verify the emailed code through `/api/auth/verify-otp`.
 
 The API allows browser requests from `https://trade-flow-dashboard-one.vercel.app`; localhost origins are allowed only in Development. Health endpoints are public and return status-only JSON:
 

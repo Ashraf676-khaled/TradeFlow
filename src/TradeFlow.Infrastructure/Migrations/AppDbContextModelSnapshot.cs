@@ -365,6 +365,34 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.ToTable("Tenants", (string)null);
                 });
 
+            modelBuilder.Entity("TradeFlow.Domain.Users.ExternalLogin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Provider", "ProviderSubject")
+                        .IsUnique();
+
+                    b.ToTable("ExternalLogins", (string)null);
+                });
+
             modelBuilder.Entity("TradeFlow.Domain.Users.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -399,6 +427,25 @@ namespace TradeFlow.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("EmailConfirmed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTimeOffset?>("EmailOtpExpiresUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EmailOtpFailedAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EmailOtpHash")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmailOtpPurpose")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -419,6 +466,11 @@ namespace TradeFlow.Infrastructure.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("TwoFactorEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.HasKey("Id");
 
@@ -984,6 +1036,15 @@ namespace TradeFlow.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("UnitPrice")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TradeFlow.Domain.Users.ExternalLogin", b =>
+                {
+                    b.HasOne("TradeFlow.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

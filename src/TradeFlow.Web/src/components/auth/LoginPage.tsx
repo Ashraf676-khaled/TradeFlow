@@ -1,15 +1,50 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Layers, Lock, Mail, AlertCircle, ArrowLeft, User, UserPlus, LogIn } from 'lucide-react';
 import { authService, UserSession } from '../../services/authService';
+import { getApiErrorMessage } from '../../services/apiClient';
 
 interface LoginPageProps {
   onLoginSuccess: (session: UserSession) => void;
 }
 
 type AuthMode = 'login' | 'register';
+type AuthStep = 'credentials' | 'otp';
+
+type GoogleCredentialResponse = {
+  credential: string;
+};
+
+type GoogleIdConfiguration = {
+  client_id: string;
+  callback: (response: GoogleCredentialResponse) => void;
+};
+
+type GoogleButtonOptions = {
+  theme: 'outline';
+  size: 'large';
+  width: number;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (configuration: GoogleIdConfiguration) => void;
+          renderButton: (parent: HTMLElement, options: GoogleButtonOptions) => void;
+        };
+      };
+    };
+  }
+}
+
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState<AuthMode>('login');
+  const [authStep, setAuthStep] = useState<AuthStep>('credentials');
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('admin@tradeflow.io');
@@ -25,6 +60,75 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mode !== 'login' || authStep !== 'credentials' || !googleClientId || !googleButtonRef.current) {
+      return;
+    }
+
+    let active = true;
+    const initializeGoogle = () => {
+      if (!active || !window.google || !googleButtonRef.current) {
+        return;
+      }
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async ({ credential }) => {
+          setIsLoading(true);
+          setErrorMessage(null);
+          setSuccessMessage(null);
+
+          try {
+            const outcome = await authService.googleLogin(credential);
+            if (outcome.requiresTwoFactor) {
+              setOtpEmail(outcome.email);
+              setOtpCode('');
+              setAuthStep('otp');
+              setSuccessMessage('تم إرسال رمز التحقق إلى بريدك الإلكتروني.');
+            } else {
+              onLoginSuccess(outcome.session);
+            }
+          } catch (error) {
+            setErrorMessage(getApiErrorMessage(error, 'تعذر تسجيل الدخول باستخدام Google.'));
+          } finally {
+            setIsLoading(false);
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: 320,
+      });
+    };
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://accounts.google.com/gsi/client"]',
+    );
+    if (window.google) {
+      initializeGoogle();
+    } else if (existingScript) {
+      existingScript.addEventListener('load', initializeGoogle, { once: true });
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogle;
+      script.onerror = () => {
+        if (active) {
+          setErrorMessage('تعذر تحميل خدمة تسجيل الدخول باستخدام Google.');
+        }
+      };
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [authStep, mode, onLoginSuccess]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,16 +136,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setErrorMessage(null);
 
     try {
-      const session = await authService.login(loginEmail, loginPassword);
-      onLoginSuccess(session);
-    } catch (err: any) {
-      if (err.response?.data?.title) {
-        setErrorMessage(err.response.data.title);
-      } else if (err.response?.status === 401) {
-        setErrorMessage('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+      const outcome = await authService.login(loginEmail, loginPassword);
+      if (outcome.requiresTwoFactor) {
+        setOtpEmail(outcome.email);
+        setOtpCode('');
+        setAuthStep('otp');
+        setSuccessMessage('تم إرسال رمز التحقق إلى بريدك الإلكتروني.');
       } else {
-        setErrorMessage('تعذر الاتصال بالنظام. يرجى التحقق من اتصال الشبكة وإعادة المحاولة.');
+        onLoginSuccess(outcome.session);
       }
+    } catch (error) {
+      setErrorMessage(getApiErrorMessage(error, 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'));
     } finally {
       setIsLoading(false);
     }
@@ -76,23 +181,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
 
     try {
-      const session = await authService.register(regEmail, regPassword, regName, regCompanyName);
-      onLoginSuccess(session);
-    } catch (err: any) {
-      if (err.response?.data?.errors) {
-        const errs = Object.values(err.response.data.errors as Record<string, string[]>).flat();
-        setErrorMessage(errs.join(' | '));
-      } else if (err.response?.data?.title) {
-        setErrorMessage(err.response.data.title);
-      } else if (err.response?.data?.message) {
-        setErrorMessage(err.response.data.message);
-      } else if (err.response?.status === 400) {
-        setErrorMessage('البيانات المدخلة غير صحيحة. يرجى مراجعة المعلومات وإعادة المحاولة.');
-      } else if (err.response?.status === 409) {
-        setErrorMessage('هذا البريد الإلكتروني مسجل بالفعل في النظام. يرجى تسجيل الدخول.');
+      const outcome = await authService.register(regEmail, regPassword, regName, regCompanyName);
+      if (outcome.requiresTwoFactor) {
+        setOtpEmail(outcome.email);
+        setOtpCode('');
+        setAuthStep('otp');
+        setSuccessMessage('تم إنشاء الحساب وإرسال رمز تأكيد إلى بريدك الإلكتروني.');
       } else {
-        setErrorMessage('تعذر الاتصال بالنظام. يرجى التحقق من اتصال الشبكة وإعادة المحاولة.');
+        onLoginSuccess(outcome.session);
       }
+    } catch (error) {
+      setErrorMessage(
+        getApiErrorMessage(
+          error,
+          'تعذر إنشاء الحساب. تحقق من البيانات وحاول مرة أخرى.',
+        ),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const outcome = await authService.verifyOtp(otpEmail, otpCode);
+      if (outcome.requiresTwoFactor) {
+        setOtpEmail(outcome.email);
+        setOtpCode('');
+        setSuccessMessage('أدخل رمز التحقق المرسل إلى بريدك الإلكتروني.');
+      } else {
+        onLoginSuccess(outcome.session);
+      }
+    } catch (error) {
+      setErrorMessage(getApiErrorMessage(error, 'رمز التحقق غير صحيح أو منتهي الصلاحية.'));
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +226,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   const switchMode = (newMode: AuthMode) => {
     setMode(newMode);
+    setAuthStep('credentials');
+    setOtpCode('');
+    setOtpEmail('');
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
+  const returnToCredentials = () => {
+    setAuthStep('credentials');
+    setOtpCode('');
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -128,7 +264,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         <div className="bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden">
 
           {/* Tab Switcher */}
-          <div className="flex border-b border-slate-100">
+          {authStep === 'credentials' && <div className="flex border-b border-slate-100">
             <button
               type="button"
               onClick={() => switchMode('login')}
@@ -153,7 +289,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <UserPlus className="w-4 h-4" />
               إنشاء حساب جديد
             </button>
-          </div>
+          </div>}
 
           <div className="p-8 space-y-5">
 
@@ -171,7 +307,41 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             )}
 
             {/* ─── LOGIN FORM ─── */}
-            {mode === 'login' && (
+            {authStep === 'otp' && (
+              <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1.5">رمز التحقق</label>
+                  <p className="mb-3 text-slate-500">أدخل الرمز المرسل إلى {otpEmail}</p>
+                  <input
+                    type="text"
+                    required
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    pattern="[0-9]{6}"
+                    value={otpCode}
+                    onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full px-4 py-3 text-center text-lg tracking-[0.5em] rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading || otpCode.length !== 6}
+                  className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2"
+                >
+                  {isLoading ? 'جارٍ التحقق...' : 'تأكيد الرمز'}
+                </button>
+                <button
+                  type="button"
+                  onClick={returnToCredentials}
+                  className="w-full py-2 text-slate-600 hover:text-blue-700 font-bold"
+                >
+                  العودة إلى تسجيل الدخول
+                </button>
+              </form>
+            )}
+
+            {authStep === 'credentials' && mode === 'login' && (
               <form onSubmit={handleLogin} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">البريد الإلكتروني</label>
@@ -223,8 +393,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </form>
             )}
 
+            {authStep === 'credentials' && mode === 'login' && googleClientId && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                  <span className="h-px flex-1 bg-slate-200" />
+                  <span>أو تابع باستخدام</span>
+                  <span className="h-px flex-1 bg-slate-200" />
+                </div>
+                <div ref={googleButtonRef} className="flex justify-center" />
+              </div>
+            )}
+
             {/* ─── REGISTER FORM ─── */}
-            {mode === 'register' && (
+            {authStep === 'credentials' && mode === 'register' && (
               <form onSubmit={handleRegister} className="space-y-4 text-xs">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">الاسم الكامل</label>

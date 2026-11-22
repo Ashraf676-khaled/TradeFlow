@@ -1,13 +1,10 @@
 import { apiClient } from './apiClient';
 
-export interface LoginResponse {
-  accessToken: string;
-  accessTokenExpiresUtc: string;
-}
-
-export interface RegisterResponse {
-  accessToken: string;
-  accessTokenExpiresUtc: string;
+export interface AuthApiResponse {
+  accessToken: string | null;
+  accessTokenExpiresUtc: string | null;
+  requiresTwoFactor: boolean;
+  email: string | null;
 }
 
 export interface UserSession {
@@ -16,39 +13,80 @@ export interface UserSession {
   token: string;
 }
 
+export type AuthOutcome =
+  | { requiresTwoFactor: true; email: string }
+  | { requiresTwoFactor: false; session: UserSession };
+
 export class AuthService {
-  async login(email: string, password: string): Promise<UserSession> {
-    const response = await apiClient.post<LoginResponse>('/api/auth/login', {
-      email,
-      password,
-    });
+  async login(email: string, password: string): Promise<AuthOutcome> {
+    const response = await apiClient.post<AuthApiResponse>(
+      '/api/auth/login',
+      { email, password },
+      { withCredentials: true },
+    );
 
-    const token = response.data.accessToken;
-    localStorage.setItem('tradeflow_access_token', token);
-    localStorage.setItem('tradeflow_user_email', email);
-
-    return {
-      email,
-      name: email.split('@')[0],
-      token,
-    };
+    return this.createOutcome(response.data, email, email.split('@')[0]);
   }
 
-  async register(email: string, password: string, name: string, companyName: string): Promise<UserSession> {
-    const response = await apiClient.post<RegisterResponse>('/api/auth/register', {
-      companyName,
-      fullName: name,
-      name,
-      email,
-      password,
-    });
+  async register(
+    email: string,
+    password: string,
+    name: string,
+    companyName: string,
+  ): Promise<AuthOutcome> {
+    const response = await apiClient.post<AuthApiResponse>(
+      '/api/auth/register',
+      {
+        companyName,
+        fullName: name,
+        email,
+        password,
+      },
+      { withCredentials: true },
+    );
 
-    const token = response.data.accessToken;
-    localStorage.setItem('tradeflow_access_token', token);
-    localStorage.setItem('tradeflow_user_email', email);
-    localStorage.setItem('tradeflow_user_name', name);
+    return this.createOutcome(response.data, email, name);
+  }
 
-    return { email, name, token };
+  async verifyOtp(email: string, code: string): Promise<AuthOutcome> {
+    const response = await apiClient.post<AuthApiResponse>(
+      '/api/auth/verify-otp',
+      { email, code },
+      { withCredentials: true },
+    );
+
+    return this.createOutcome(response.data, email, email.split('@')[0]);
+  }
+
+  async googleLogin(idToken: string): Promise<AuthOutcome> {
+    const response = await apiClient.post<AuthApiResponse>(
+      '/api/auth/google-login',
+      { idToken },
+      { withCredentials: true },
+    );
+
+    return this.createOutcome(response.data, response.data.email ?? '', response.data.email?.split('@')[0] ?? '');
+  }
+
+  private createOutcome(response: AuthApiResponse, email: string, name: string): AuthOutcome {
+    if (response.requiresTwoFactor) {
+      if (!response.email) {
+        throw new Error('The API did not return the email required for OTP verification.');
+      }
+
+      return { requiresTwoFactor: true, email: response.email };
+    }
+
+    if (!response.accessToken || !response.accessTokenExpiresUtc || !email) {
+      throw new Error('The API response did not contain a complete authentication result.');
+    }
+
+    const session = { email, name, token: response.accessToken };
+    localStorage.setItem('tradeflow_access_token', session.token);
+    localStorage.setItem('tradeflow_user_email', session.email);
+    localStorage.setItem('tradeflow_user_name', session.name);
+
+    return { requiresTwoFactor: false, session };
   }
 
   logout(): void {

@@ -16,6 +16,12 @@ public sealed class User : AggregateRoot, IAuditableEntity
   public string PasswordHash { get; private set; } = string.Empty;
   public UserRole Role { get; private set; }
   public bool IsActive { get; private set; }
+  public bool EmailConfirmed { get; private set; }
+  public bool TwoFactorEnabled { get; private set; }
+  public string? EmailOtpHash { get; private set; }
+  public DateTimeOffset? EmailOtpExpiresUtc { get; private set; }
+  public EmailOtpPurpose? EmailOtpPurpose { get; private set; }
+  public int EmailOtpFailedAttempts { get; private set; }
 
   public IReadOnlyCollection<RefreshToken> RefreshTokens => _refreshTokens.AsReadOnly();
 
@@ -26,7 +32,14 @@ public sealed class User : AggregateRoot, IAuditableEntity
 
   private User() { } // EF Core
 
-  private User(UserId id, TenantId tenantId, string fullName, Email email, string passwordHash, UserRole role)
+  private User(
+      UserId id,
+      TenantId tenantId,
+      string fullName,
+      Email email,
+      string passwordHash,
+      UserRole role,
+      bool emailConfirmed)
       : base(id.Value)
   {
     Id = id;
@@ -36,10 +49,40 @@ public sealed class User : AggregateRoot, IAuditableEntity
     PasswordHash = passwordHash;
     Role = role;
     IsActive = true;
+    EmailConfirmed = emailConfirmed;
   }
 
   public static Result<User> Create(
       TenantId tenantId, string fullName, Email email, string passwordHash, UserRole role)
+  {
+    return CreateCore(tenantId, fullName, email, passwordHash, role, true);
+  }
+
+  public static Result<User> CreateUnconfirmed(
+      TenantId tenantId, string fullName, Email email, string passwordHash, UserRole role)
+  {
+    return CreateCore(tenantId, fullName, email, passwordHash, role, false);
+  }
+
+  public static Result<User> CreateExternal(
+      TenantId tenantId, string fullName, Email email, UserRole role)
+  {
+    if (string.IsNullOrWhiteSpace(fullName))
+      return UserErrors.FullNameRequired;
+
+    if (fullName.Length > 150)
+      return UserErrors.FullNameTooLong;
+
+    return new User(UserId.New(), tenantId, fullName, email, string.Empty, role, true);
+  }
+
+  private static Result<User> CreateCore(
+      TenantId tenantId,
+      string fullName,
+      Email email,
+      string passwordHash,
+      UserRole role,
+      bool emailConfirmed)
   {
     if (string.IsNullOrWhiteSpace(fullName))
       return UserErrors.FullNameRequired;
@@ -50,8 +93,35 @@ public sealed class User : AggregateRoot, IAuditableEntity
     if (string.IsNullOrWhiteSpace(passwordHash))
       return UserErrors.PasswordHashRequired;
 
-    return new User(UserId.New(), tenantId, fullName, email, passwordHash, role);
+    return new User(UserId.New(), tenantId, fullName, email, passwordHash, role, emailConfirmed);
   }
+
+  public void SetEmailOtp(string hash, DateTimeOffset expiresUtc, EmailOtpPurpose purpose)
+  {
+    EmailOtpHash = hash;
+    EmailOtpExpiresUtc = expiresUtc;
+    EmailOtpPurpose = purpose;
+    EmailOtpFailedAttempts = 0;
+  }
+
+  public void IncrementEmailOtpFailedAttempts()
+  {
+    EmailOtpFailedAttempts++;
+    if (EmailOtpFailedAttempts >= 5)
+      ClearEmailOtp();
+  }
+
+  public void ClearEmailOtp()
+  {
+    EmailOtpHash = null;
+    EmailOtpExpiresUtc = null;
+    EmailOtpPurpose = null;
+    EmailOtpFailedAttempts = 0;
+  }
+
+  public void ConfirmEmail() => EmailConfirmed = true;
+
+  public void EnableTwoFactor() => TwoFactorEnabled = true;
 
   public Result<RefreshToken> IssueRefreshToken(string token, DateTimeOffset expiresUtc)
   {

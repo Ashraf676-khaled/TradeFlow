@@ -15,6 +15,7 @@ public interface IApplicationDbContext
 {
   DbSet<User> Users { get; }
   DbSet<RefreshToken> RefreshTokens { get; }
+  DbSet<ExternalLogin> ExternalLogins { get; }
   DbSet<Tenant> Tenants { get; }
   DbSet<Product> Products { get; }
   DbSet<Warehouse> Warehouses { get; }

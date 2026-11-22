@@ -2,12 +2,18 @@
 
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TradeFlow.Domain.Users;
+using TradeFlow.Infrastructure.Data;
 using Xunit;
 
 public abstract class IntegrationTestBase : IClassFixture<CustomWebApplicationFactory>, IDisposable
 {
   protected readonly HttpClient Client;
   protected readonly CustomWebApplicationFactory Factory;
+  protected string? RefreshCookie { get; private set; }
 
   protected IntegrationTestBase(CustomWebApplicationFactory factory)
   {
@@ -21,14 +27,19 @@ public abstract class IntegrationTestBase : IClassFixture<CustomWebApplicationFa
     });
   }
 
-  protected async Task<string> RegisterAndLoginAsync(string? emailOverride = null)
+  protected async Task<AuthResponseDto> RegisterAndLoginAsync(
+      string? emailOverride = null,
+      string companyName = "Test Company",
+      string fullName = "Test User",
+      HttpClient? targetClient = null)
   {
+    var client = targetClient ?? Client;
     var email = emailOverride ?? $"user{Guid.NewGuid():N}@test.com";
 
-    var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", new
+    var registerResponse = await client.PostAsJsonAsync("/api/auth/register", new
     {
-      companyName = "Test Company",
-      fullName = "Test User",
+      companyName,
+      fullName,
       email,
       password = "P@ssw0rd1"
     });
@@ -40,17 +51,48 @@ public abstract class IntegrationTestBase : IClassFixture<CustomWebApplicationFa
     }
 
     var authResponse = await registerResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+    if (authResponse is null || !authResponse.RequiresTwoFactor)
+      Assert.Fail("Register succeeded but did not require email confirmation.");
 
-    if (authResponse is null || string.IsNullOrEmpty(authResponse.AccessToken))
-      Assert.Fail("Register succeeded but AccessToken was null or empty.");
+    using (var scope = Factory.Services.CreateScope())
+    {
+      var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+      var user = await dbContext.Users
+          .IgnoreQueryFilters()
+          .SingleAsync(entity => entity.Email.Value == email.ToLowerInvariant());
+      var hasher = new PasswordHasher<User>();
+      user.SetEmailOtp(
+          hasher.HashPassword(user, "123456"),
+          DateTimeOffset.UtcNow.AddMinutes(5),
+          EmailOtpPurpose.ConfirmEmail);
+      await dbContext.SaveChangesAsync();
+    }
 
-    Client.DefaultRequestHeaders.Authorization =
-        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authResponse!.AccessToken);
+    using var verifyResponse = await client.PostAsJsonAsync(
+        "/api/auth/verify-otp",
+        new { email, code = "123456" });
+    if (!verifyResponse.IsSuccessStatusCode)
+    {
+      var errorBody = await verifyResponse.Content.ReadAsStringAsync();
+      Assert.Fail($"Email confirmation failed with {verifyResponse.StatusCode}: {errorBody}");
+    }
 
-    return authResponse.AccessToken;
+    var verifiedAuth = await verifyResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+    if (verifiedAuth is null || string.IsNullOrEmpty(verifiedAuth.AccessToken))
+      Assert.Fail("Email confirmation succeeded but AccessToken was null or empty.");
+
+    RefreshCookie = verifyResponse.Headers.GetValues("Set-Cookie").Single().Split(';', 2)[0];
+    client.DefaultRequestHeaders.Authorization =
+        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", verifiedAuth!.AccessToken);
+
+    return verifiedAuth;
   }
 
   public void Dispose() => Client.Dispose();
 }
 
-public sealed record AuthResponseDto(string AccessToken, DateTimeOffset AccessTokenExpiresUtc);
+public sealed record AuthResponseDto(
+    string? AccessToken,
+    DateTimeOffset? AccessTokenExpiresUtc,
+    bool RequiresTwoFactor = false,
+    string? Email = null);

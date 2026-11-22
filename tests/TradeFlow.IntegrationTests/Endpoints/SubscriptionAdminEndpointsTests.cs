@@ -19,18 +19,7 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
   {
     var email = $"trial{Guid.NewGuid():N}@test.com";
     var createdAt = DateTimeOffset.UtcNow;
-    var response = await Client.PostAsJsonAsync("/api/auth/register", new
-    {
-      companyName = "Trial Company",
-      fullName = "Trial Owner",
-      email,
-      password = "P@ssw0rd1"
-    });
-
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
-    Assert.NotNull(auth);
-    Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.AccessToken);
+    await RegisterAndLoginAsync(email, "Trial Company", "Trial Owner");
 
     using var scope = Factory.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -46,22 +35,15 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
   [Fact]
   public async Task RefreshTokenAlias_RotatesCookieAndReturnsNewAccessToken()
   {
-    var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", new
-    {
-      companyName = "Refresh Company",
-      fullName = "Refresh Owner",
-      email = $"refresh{Guid.NewGuid():N}@test.com",
-      password = "P@ssw0rd1"
-    });
-    Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
-    var originalAuth = await registerResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
-    Assert.NotNull(originalAuth);
-    var refreshCookie = Assert.Single(registerResponse.Headers.GetValues("Set-Cookie"))
-        .Split(';', 2)[0];
+    var originalAuth = await RegisterAndLoginAsync(
+        $"refresh{Guid.NewGuid():N}@test.com",
+        "Refresh Company",
+        "Refresh Owner");
+    var refreshCookie = RefreshCookie!;
 
     using var refreshRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh-token")
     {
-      Content = JsonContent.Create(new { accessToken = originalAuth!.AccessToken })
+      Content = JsonContent.Create(new { accessToken = originalAuth.AccessToken })
     };
     refreshRequest.Headers.Add("Cookie", refreshCookie);
     using var refreshResponse = await Client.SendAsync(refreshRequest);
@@ -77,16 +59,7 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
   public async Task ExpiredSubscription_AllowsAdminReadOnlyAccessAndBlocksWrites()
   {
     var email = $"expired{Guid.NewGuid():N}@test.com";
-    var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", new
-    {
-      companyName = "Expired Company",
-      fullName = "Expired Owner",
-      email,
-      password = "P@ssw0rd1"
-    });
-    var auth = await registerResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
-    Assert.NotNull(auth);
-    Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.AccessToken);
+    await RegisterAndLoginAsync(email, "Expired Company", "Expired Owner");
 
     using (var scope = Factory.Services.CreateScope())
     {
@@ -112,17 +85,7 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
   [Fact]
   public async Task PlatformAdmin_CanListAndExtendSubscriptions_ButTenantAdminCannot()
   {
-    var adminResponse = await Client.PostAsJsonAsync("/api/auth/register", new
-    {
-      companyName = "Platform Admin Company",
-      fullName = "Platform Admin",
-      email = "platform-admin@test.com",
-      password = "P@ssw0rd1"
-    });
-    var platformAdminAuth = await adminResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
-    Assert.NotNull(platformAdminAuth);
-    Client.DefaultRequestHeaders.Authorization =
-        new AuthenticationHeaderValue("Bearer", platformAdminAuth!.AccessToken);
+    await RegisterAndLoginAsync("platform-admin@test.com", "Platform Admin Company", "Platform Admin");
 
     using (var scope = Factory.Services.CreateScope())
     {
@@ -153,16 +116,7 @@ public sealed class SubscriptionAdminEndpointsTests : IntegrationTestBase
 
     var regularClient = Factory.CreateClient();
     var regularEmail = $"tenantadmin{Guid.NewGuid():N}@test.com";
-    var regularAuthResponse = await regularClient.PostAsJsonAsync("/api/auth/register", new
-    {
-      companyName = "Regular Company",
-      fullName = "Tenant Admin",
-      email = regularEmail,
-      password = "P@ssw0rd1"
-    });
-    var regularAuth = await regularAuthResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
-    Assert.NotNull(regularAuth);
-    regularClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", regularAuth!.AccessToken);
+    await RegisterAndLoginAsync(regularEmail, "Regular Company", "Tenant Admin", regularClient);
 
     using var forbiddenResponse = await regularClient.GetAsync("/api/admin/tenants");
     Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);

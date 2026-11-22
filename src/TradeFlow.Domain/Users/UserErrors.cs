@@ -39,4 +39,13 @@ public static class UserErrors
 
   public static readonly Error EmailAlreadyExists = Error.Conflict(
       "User.EmailAlreadyExists", "A user with this email already exists.");
+
+  public static readonly Error InvalidEmailOtp = Error.Validation(
+      "User.InvalidEmailOtp", "The verification code is invalid or expired.");
+
+  public static readonly Error GoogleLoginFailed = Error.Validation(
+      "User.GoogleLoginFailed", "Google authentication could not be completed.");
+
+  public static readonly Error EmailNotConfirmed = Error.Validation(
+      "User.EmailNotConfirmed", "The email address must be confirmed before enabling two-factor authentication.");
 }

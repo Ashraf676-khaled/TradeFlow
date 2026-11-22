@@ -7,6 +7,8 @@ using TradeFlow.Infrastructure.BackgroundJobs;
 using TradeFlow.Infrastructure.Data;
 using TradeFlow.Infrastructure.Data.Interceptors;
 using TradeFlow.Infrastructure.Identity;
+using TradeFlow.Infrastructure.Email;
+using TradeFlow.Infrastructure.Settings;
 
 namespace TradeFlow.Infrastructure;
 
@@ -20,12 +22,15 @@ public static class DependencyInjection
 
     services.Configure<Jwt>(configuration.GetSection("Jwt"));
     services.Configure<PlatformAdminOptions>(configuration.GetSection("PlatformAdmin"));
+    services.Configure<SmtpSettings>(configuration.GetSection("Smtp"));
+    services.Configure<GoogleAuthSettings>(configuration.GetSection("GoogleAuth"));
 
     services.AddScoped<ICurrentUserService, CurrentUserService>();
     services.AddScoped<ITokenProvider, TokenProvider>();
     services.AddScoped<IRefreshTokenService, RefreshTokenService>();
     services.AddScoped<IUserRepository, UserRepository>();
     services.AddScoped<IIdentityService, IdentityService>();
+    services.AddScoped<IEmailService, MailKitEmailService>();
 
     services.AddScoped<AuditableEntityInterceptor>();
     services.AddScoped<DispatchDomainEventsInterceptor>();

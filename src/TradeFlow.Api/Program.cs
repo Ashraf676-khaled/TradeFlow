@@ -21,6 +21,8 @@ using TradeFlow.Infrastructure.BackgroundJobs;
 using TradeFlow.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+var authRateLimit = builder.Configuration.GetValue<int?>("RateLimit:AuthPermitLimit")
+    ?? (builder.Environment.IsEnvironment("Testing") ? 1000 : 10);
 builder.Services.AddMemoryCache();
 builder.Services.AddRateLimiter(options =>
 {
@@ -59,7 +61,7 @@ builder.Services.AddRateLimiter(options =>
           $"auth:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}",
           _ => new FixedWindowRateLimiterOptions
           {
-            PermitLimit = 10,
+            PermitLimit = authRateLimit,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
             AutoReplenishment = true

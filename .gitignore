@@ -196,6 +196,9 @@ _pkginfo.txt
 ClientBin/
 ~$*
 *~
+.env
+.env.*
+!.env.example
 *.dbmdl
 *.dbproj.schemaview
 *.pfx
