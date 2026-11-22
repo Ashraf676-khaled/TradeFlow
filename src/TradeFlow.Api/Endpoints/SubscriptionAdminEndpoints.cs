@@ -26,11 +26,9 @@ public sealed class SubscriptionAdminEndpoints : IEndpoint
               tenant.SubscriptionEndDate))
           .ToListAsync(ct);
 
-      var tenantIds = tenants.Select(tenant => tenant.Id).ToArray();
       var usersByTenant = await dbContext.Users
           .IgnoreQueryFilters()
           .AsNoTracking()
-          .Where(user => tenantIds.Contains(user.TenantId.Value))
           .Select(user => new
           {
             TenantId = user.TenantId.Value,

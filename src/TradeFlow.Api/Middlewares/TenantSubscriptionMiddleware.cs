@@ -17,7 +17,7 @@ public sealed class TenantSubscriptionMiddleware(
 {
   private static readonly TimeSpan SubscriptionCacheDuration = TimeSpan.FromSeconds(5);
   private const string ExpiredSubscriptionMessage =
-      "Your free 30-day trial has expired. Please contact the platform administrator to renew your subscription.";
+      "انتهت الفترة التجريبية. يرجى التواصل مع مسؤول المنصة لتجديد الاشتراك.";
 
   public async Task InvokeAsync(HttpContext context, AppDbContext dbContext)
   {
@@ -93,7 +93,7 @@ public sealed class TenantSubscriptionMiddleware(
 
   private static async Task RejectRequest(HttpContext context)
   {
-    context.Response.StatusCode = StatusCodes.Status402PaymentRequired;
+    context.Response.StatusCode = StatusCodes.Status403Forbidden;
     context.Response.ContentType = "application/json; charset=utf-8";
     await context.Response.WriteAsJsonAsync(
         new { message = ExpiredSubscriptionMessage },
