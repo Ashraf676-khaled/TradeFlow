@@ -40,6 +40,11 @@ public static class DependencyInjection
       var connectionString = configuration.GetConnectionString("DefaultConnection")
           ?? throw new InvalidOperationException(
               "ConnectionStrings:DefaultConnection must be configured.");
+      if (string.IsNullOrWhiteSpace(connectionString))
+      {
+        throw new InvalidOperationException(
+            "ConnectionStrings:DefaultConnection must be configured.");
+      }
       var databaseProvider = configuration["Database:Provider"] ?? "Sqlite";
 
       if (string.Equals(databaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))

@@ -8,10 +8,7 @@ using TradeFlow.Application.Common.Constants;
 
 public static class AuthenticationConfig
 {
-  // The repository default committed in appsettings.json. Running with it in
-  // production means anyone who reads the repo can forge tokens, and if a
-  // hosting platform regenerates Jwt__Secret on every restart, every user is
-  // logged out each time the app recycles.
+  // Reject the previously committed default if it is still supplied by a host.
   private const string RepositoryDefaultSecret = "SUPER_SECRET_KEY_EXCEEDING_32_BYTES_FOR_HS256";
 
   public static IServiceCollection AddAuthenticationConfig(
@@ -22,7 +19,8 @@ public static class AuthenticationConfig
                       ?? throw new InvalidOperationException("Jwt settings are missing");
     if (string.IsNullOrWhiteSpace(jwtSettings.Secret)
         || Encoding.UTF8.GetByteCount(jwtSettings.Secret) < 32
-        || jwtSettings.Secret.StartsWith("CHANGE_THIS_TO_", StringComparison.Ordinal))
+        || jwtSettings.Secret.StartsWith("CHANGE_THIS_TO_", StringComparison.Ordinal)
+        || string.Equals(jwtSettings.Secret, RepositoryDefaultSecret, StringComparison.Ordinal))
     {
       throw new InvalidOperationException(
           "Jwt:Secret must be configured with a random key of at least 32 bytes using user secrets or the Jwt__Secret environment variable.");
@@ -37,13 +35,6 @@ public static class AuthenticationConfig
         "JWT signing key fingerprint: {Fingerprint}. Expiry: {ExpiryMinutes} min.",
         fingerprint,
         jwtSettings.ExpiryInMinutes);
-    if (string.Equals(jwtSettings.Secret, RepositoryDefaultSecret, StringComparison.Ordinal))
-    {
-      Log.Warning(
-          "Jwt:Secret is still the repository default from appsettings.json. " +
-          "Set the Jwt__Secret environment variable (stable across restarts) on the host " +
-          "so tokens survive redeployments and the default key is not public.");
-    }
 
     services.AddAuthentication(options =>
     {

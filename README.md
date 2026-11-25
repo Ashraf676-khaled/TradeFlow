@@ -110,15 +110,21 @@ Every Value Object and Aggregate is developed test-first at the unit level — i
 
 Set these values in the API host's environment/secrets; do not commit them or send them in chat:
 
-- `Jwt__Secret`: a randomly generated secret of at least 32 bytes. The API refuses to start if it is missing or too short.
-- `ConnectionStrings__DefaultConnection`: a SQLite connection string pointing to persistent, writable storage on the API host. This API currently uses SQLite; the checked-in database path is only a local fallback.
-- `Smtp__Email` and `Smtp__Password`: the Gmail account and app password used by the SMTP sender. The SMTP host, port, and display name are non-secret defaults in `appsettings.json`.
+- `Jwt__Secret`: a randomly generated secret of at least 32 bytes. The API refuses to start if it is missing, too short, or set to the previously committed default.
+- `ConnectionStrings__DefaultConnection`: the SQL Server connection string for the production database. It is intentionally not stored in `appsettings.json`.
+- `Database__Provider`: set to `SqlServer` for production; local development uses SQLite.
+- `Smtp__Email` and `Smtp__Password`: the Gmail account and app password used by the SMTP sender. Set them in the API host's environment/secrets.
 - `GoogleAuth__ClientId`: the OAuth client ID whose audience is accepted by the API.
+- `PlatformAdmin__UserId`: the platform administrator's user ID.
+- Keep `Jwt__Secret` stable between restarts; rotating it invalidates existing access tokens.
 - Rate limits: 300 requests per minute per authenticated user (or source IP before authentication) across the API, plus a separate limit of 10 requests per minute per source IP on authentication endpoints. Excess requests receive `429 Too Many Requests`.
 
 For local development, set these values with User Secrets without adding credentials to either appsettings file:
 
 ```powershell
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Data Source=tradeflow.db" --project src\TradeFlow.Api\TradeFlow.Api.csproj
+dotnet user-secrets set "Database:Provider" "Sqlite" --project src\TradeFlow.Api\TradeFlow.Api.csproj
+dotnet user-secrets set "Jwt:Secret" "<random-secret-of-at-least-32-bytes>" --project src\TradeFlow.Api\TradeFlow.Api.csproj
 dotnet user-secrets set "Smtp:Email" "<gmail-address>" --project src\TradeFlow.Api\TradeFlow.Api.csproj
 dotnet user-secrets set "Smtp:Password" "<gmail-app-password>" --project src\TradeFlow.Api\TradeFlow.Api.csproj
 dotnet user-secrets set "GoogleAuth:ClientId" "<google-oauth-client-id>" --project src\TradeFlow.Api\TradeFlow.Api.csproj
