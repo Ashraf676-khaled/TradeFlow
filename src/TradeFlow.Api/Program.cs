@@ -26,6 +26,7 @@ if (builder.Environment.IsProduction())
   var requiredSettings = new[]
   {
     "GoogleAuth:ClientId",
+    "GoogleAuth:ClientSecret",
     "Smtp:Email",
     "Smtp:Password"
   };

@@ -2,7 +2,6 @@
 
 using Hangfire;
 using Hangfire.Common;
-using Hangfire.MemoryStorage;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -14,36 +13,21 @@ public static class BackgroundJobsConfig
   public static IServiceCollection AddBackgroundJobs(
       this IServiceCollection services, IConfiguration configuration)
   {
-    var databaseProvider = configuration["Database:Provider"] ?? "Sqlite";
     var connectionString = configuration.GetConnectionString("DefaultConnection");
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+      throw new InvalidOperationException(
+          "ConnectionStrings:DefaultConnection must be configured for Hangfire storage.");
+    }
 
     services.AddHangfire(config =>
     {
       config
           .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
           .UseSimpleAssemblyNameTypeSerializer()
-          .UseRecommendedSerializerSettings();
-
-      if (string.Equals(databaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
-      {
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-          throw new InvalidOperationException(
-              "ConnectionStrings:DefaultConnection must be configured for SQL Server Hangfire storage.");
-        }
-
-        config.UseSqlServerStorage(connectionString);
-        return;
-      }
-
-      if (string.Equals(databaseProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
-      {
-        config.UseMemoryStorage();
-        return;
-      }
-
-      throw new InvalidOperationException(
-          $"Unsupported database provider '{databaseProvider}' for Hangfire storage.");
+          .UseRecommendedSerializerSettings()
+          .UseSqlServerStorage(connectionString);
     });
 
     services.AddHangfireServer(options =>
