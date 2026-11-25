@@ -21,6 +21,25 @@ using TradeFlow.Infrastructure.BackgroundJobs;
 using TradeFlow.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsProduction())
+{
+  var requiredSettings = new[]
+  {
+    "GoogleAuth:ClientId",
+    "Smtp:Email",
+    "Smtp:Password"
+  };
+  var missingSettings = requiredSettings
+      .Where(key => string.IsNullOrWhiteSpace(builder.Configuration[key]))
+      .ToArray();
+  if (missingSettings.Length > 0)
+  {
+    throw new InvalidOperationException(
+        $"Missing required production settings: {string.Join(", ", missingSettings)}. " +
+        "Set them in the API host environment using double underscores for nested keys.");
+  }
+}
+
 var authRateLimit = builder.Configuration.GetValue<int?>("RateLimit:AuthPermitLimit")
     ?? (builder.Environment.IsEnvironment("Testing") ? 1000 : 10);
 builder.Services.AddMemoryCache();
