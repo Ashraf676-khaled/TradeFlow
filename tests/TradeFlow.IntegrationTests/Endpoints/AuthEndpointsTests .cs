@@ -2,6 +2,7 @@
 
 using System.Net;
 using System.Net.Http.Json;
+using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,23 @@ using Xunit;
 public class AuthEndpointsTests : IntegrationTestBase
 {
   public AuthEndpointsTests(CustomWebApplicationFactory factory) : base(factory) { }
+
+  [Fact]
+  public async Task Register_WithValidData_ShouldEnqueueOtpEmail()
+  {
+    var jobStorage = Factory.Services.GetRequiredService<JobStorage>();
+    var initialEnqueuedJobs = jobStorage.GetMonitoringApi().GetStatistics().Enqueued;
+    var response = await Client.PostAsJsonAsync("/api/auth/register", new
+    {
+      companyName = "Acme Inc",
+      fullName = "Ahmed Ali",
+      email = $"otp{Guid.NewGuid():N}@test.com",
+      password = "P@ssw0rd1"
+    });
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.Equal(initialEnqueuedJobs + 1, jobStorage.GetMonitoringApi().GetStatistics().Enqueued);
+  }
 
   [Fact]
   public async Task Register_WithValidData_ShouldRequireEmailOtpWithoutIssuingTokens()

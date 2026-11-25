@@ -17,25 +17,35 @@ public sealed class HangfireStorageHealthCheck(
     try
     {
       var monitoringApi = jobStorage.GetMonitoringApi();
-      monitoringApi.GetStatistics();
-      if (environment.IsProduction() && monitoringApi.Servers().Count == 0)
+      var statistics = monitoringApi.GetStatistics();
+      var servers = monitoringApi.Servers();
+      var data = new Dictionary<string, object>
+      {
+        ["component"] = "Hangfire",
+        ["serverCount"] = servers.Count,
+        ["workerCount"] = servers.Sum(server => server.WorkersCount),
+        ["enqueuedJobs"] = statistics.Enqueued,
+        ["failedJobs"] = statistics.Failed
+      };
+
+      if (environment.IsProduction() && servers.Count == 0)
       {
         return Task.FromResult(HealthCheckResult.Degraded(
             "No Hangfire server is registered; background jobs cannot run.",
-            data: new Dictionary<string, object>
-            {
-              ["component"] = "Hangfire",
-              ["impact"] = "Queued and scheduled jobs are not being processed."
-            }));
+            data: data));
+      }
+
+      if (statistics.Failed > 0)
+      {
+        logger.LogWarning("Hangfire has {FailedJobCount} failed jobs.", statistics.Failed);
+        return Task.FromResult(HealthCheckResult.Degraded(
+            "Hangfire has failed jobs; inspect the API logs and job storage.",
+            data: data));
       }
 
       return Task.FromResult(HealthCheckResult.Healthy(
           "Background-job storage is reachable.",
-          data: new Dictionary<string, object>
-          {
-            ["component"] = "Hangfire",
-            ["impact"] = "Scheduled jobs can run."
-          }));
+          data));
     }
     catch (Exception exception)
     {

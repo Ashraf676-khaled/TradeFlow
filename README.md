@@ -137,7 +137,7 @@ Registration now returns `requiresTwoFactor: true` and does not issue tokens unt
 The API allows browser requests from `https://trade-flow-dashboard-one.vercel.app`; localhost origins are allowed only in Development. Health endpoints are public and return status-only JSON:
 
 - `/health/live` checks that the API process is responding.
-- `/health/ready` checks the database, Hangfire storage, and the authentication, customers, expenses, inventory, sales, purchasing, and settings feature tables.
+- `/health/ready` checks the database, Hangfire storage, and the authentication, customers, expenses, inventory, sales, purchasing, and settings feature tables. In Production it also verifies that a Hangfire server is registered; its Hangfire data includes server, worker, enqueued-job, and failed-job counts.
 - `/health` returns the same checks with per-check descriptions, durations, component details, a UTC timestamp, and Healthy/Degraded/Unhealthy totals.
 
 The readiness response does not include connection strings or exception details.
