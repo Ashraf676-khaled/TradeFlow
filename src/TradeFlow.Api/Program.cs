@@ -15,6 +15,7 @@ using TradeFlow.Api.Configurations;
 using TradeFlow.Api.Extensions;
 using TradeFlow.Api.Health;
 using TradeFlow.Api.Middlewares;
+using TradeFlow.Api.Security;
 using TradeFlow.Application;
 using TradeFlow.Infrastructure;
 using TradeFlow.Infrastructure.BackgroundJobs;
@@ -184,7 +185,8 @@ app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
 app.UseRequestLogContext();
 
-// 2. Development Tools (Scalar & OpenAPI) & Hangfire Dashboard
+// 2. Development Tools & Hangfire Dashboard
+// في التطوير يُظهر Scalar + Hangfire؛ وفي الإنتاج يُظهر Hangfire فقط مع حماية تسجيل الدخول.
 if (app.Environment.IsDevelopment())
 {
   app.MapOpenApi();
@@ -193,9 +195,12 @@ if (app.Environment.IsDevelopment())
     options.Title = "TradeFlow API Documentation";
     options.Theme = ScalarTheme.Purple;
   });
-
-  app.UseHangfireDashboard("/hangfire");
 }
+
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+  Authorization = [new HangfireAuthFilter()]
+});
 
 // تسجيل وإ جدولة الـ Recurring Jobs (يتم تخطيها في بيئة الـ Testing لعدم التأثير على الاختبارات)
 if (!app.Environment.IsEnvironment("Testing"))
